@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Verify formatting
+        shell: bash
+        run: test -z "$(gofmt -l .)"
+      - name: Vet
+        run: go vet ./...
+      - name: Test
+        run: go test -timeout 180s ./...
+      - name: Race detector
+        if: matrix.os == 'ubuntu-latest'
+        run: go test -race -timeout 240s ./...
+      - name: Static analysis
+        if: matrix.os == 'ubuntu-latest'
+        run: go run honnef.co/go/tools/cmd/staticcheck@v0.7.0 ./...
+      - name: Reachable vulnerability scan
+        if: matrix.os == 'ubuntu-latest'
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./...
+      - name: Build
+        run: go build ./...
+      - name: CLI smoke
+        shell: bash
+        run: |
+          go build -trimpath -o fleetctl ./cmd/fleetctl
+          ./fleetctl version

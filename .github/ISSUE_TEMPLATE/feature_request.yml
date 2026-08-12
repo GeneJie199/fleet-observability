@@ -1,0 +1,24 @@
+name: Feature request
+description: Propose a focused improvement with a verifiable outcome.
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user or operator problem is not handled today?
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: Describe behavior and acceptance evidence, not only an implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives and scope
+      description: Existing workarounds, compatibility concerns, and what should remain out of scope.

@@ -1,0 +1,39 @@
+{
+  "http": [
+    {
+      "name": "public-api",
+      "url": "http://127.0.0.1:8080/health",
+      "want_status": 200,
+      "contains": "ok",
+      "timeout_seconds": 5,
+      "required": true
+    }
+  ],
+  "tcp": [
+    {
+      "name": "redis",
+      "address": "127.0.0.1:6379",
+      "timeout_seconds": 3,
+      "required": false
+    }
+  ],
+  "tls": [
+    {
+      "name": "public-tls",
+      "address": "example.com:443",
+      "server_name": "example.com",
+      "warning_days": 30,
+      "critical_days": 7,
+      "required": true
+    }
+  ],
+  "databases": [
+    {
+      "name": "orders-postgres",
+      "engine": "postgres",
+      "dsn_env": "FLEET_ORDERS_DSN",
+      "timeout_seconds": 5,
+      "required": true
+    }
+  ]
+}

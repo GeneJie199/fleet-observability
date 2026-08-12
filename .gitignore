@@ -1,0 +1,11 @@
+/bin/
+/dist/
+/.qa/
+/fleet-data/
+/nodes/
+/history/
+/alerts.json
+/changes.json
+/groups.json
+/topology-reviews.json
+*.log

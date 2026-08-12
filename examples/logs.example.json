@@ -1,0 +1,20 @@
+{
+  "files": [
+    {
+      "name": "checkout-json",
+      "path": "/var/log/checkout/application.log",
+      "service": "checkout",
+      "format": "auto",
+      "from_start": false,
+      "max_read_bytes": 1048576
+    },
+    {
+      "name": "nginx-error",
+      "path": "/var/log/nginx/error.log",
+      "service": "edge",
+      "format": "text",
+      "from_start": false,
+      "max_read_bytes": 1048576
+    }
+  ]
+}

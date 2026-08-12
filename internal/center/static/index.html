@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FleetScope</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="product-brand"><span class="suite-kicker">AI DEVOPS OPEN SUITE</span><div><strong class="product-name">FleetScope</strong><span class="product-subtitle">原生监控中心</span></div></div>
+    <div class="top-actions">
+      <details class="suite-switcher"><summary>模块</summary><div class="suite-menu"><a data-suite="devcycle">DevCycle<span>研发交付</span></a><a data-suite="infrascout">InfraScout<span>基础设施发现</span></a><a data-suite="fleetscope" class="current">FleetScope<span>原生监控</span></a><a data-suite="releaseguard">ReleaseGuard<span>发布门禁</span></a></div></details>
+      <span id="sync-state" role="status">等待同步</span>
+      <button id="token-button" class="quiet" type="button">写入凭据</button>
+      <button id="refresh" type="button">刷新</button>
+    </div>
+  </header>
+  <div id="data-banner" class="data-banner" role="alert"></div>
+  <div class="contextbar">
+    <label for="group-select">资源组</label>
+    <select id="group-select"><option value="">全部资源</option></select>
+    <button id="group-manage" type="button">管理资源组</button>
+    <span id="group-summary">全部节点与资源</span>
+  </div>
+  <div class="shell">
+    <nav aria-label="主导航">
+      <button class="active" data-view="overview" type="button" aria-current="page">总览</button>
+      <button data-view="nodes" type="button">节点</button>
+      <button data-view="metrics" type="button">指标分析</button>
+      <button data-view="sources" type="button">数据接入</button>
+      <button data-view="events" type="button">事件流</button>
+      <button data-view="databases" type="button">数据库</button>
+      <button data-view="alerts" type="button">告警 <span id="alert-badge"></span></button>
+      <button data-view="rules" type="button">告警规则</button>
+      <button data-view="changes" type="button">变化 <span id="change-badge"></span></button>
+      <button data-view="topology" type="button">拓扑</button>
+      <button data-view="coverage" type="button">覆盖</button>
+    </nav>
+    <main>
+      <section class="view active" id="view-overview">
+        <div class="page-title"><div><h1>全局健康</h1><p>按严重程度聚合节点、告警和待审核变化。</p></div></div>
+        <div id="overview-metrics" class="metrics loading"></div>
+        <div class="section-head"><h2>需要处理</h2><span id="overview-time"></span></div>
+        <div id="attention" class="table-wrap loading"></div>
+        <div class="section-head"><h2>资源分布</h2></div>
+        <div id="resource-totals" class="resource-strip"></div>
+      </section>
+      <section class="view" id="view-nodes">
+        <div class="page-title"><div><h1>节点</h1><p>横向比较机器健康、容量和采集新鲜度。</p></div><label class="search">筛选<input id="node-filter" type="search" placeholder="节点、主机名或标签"></label></div>
+        <div id="nodes-table" class="table-wrap loading"></div>
+      </section>
+      <section class="view" id="view-metrics">
+        <div class="page-title"><div><h1>指标分析</h1><p>查询自研时序存储中的原生采集与兼容数据，比较节点和序列趋势。</p></div><button id="metric-refresh" type="button">运行查询</button></div>
+        <div id="metric-summary" class="metrics compact loading"></div>
+        <form id="metric-query" class="query-bar">
+          <label>指标<select id="metric-name" required><option value="">选择指标</option></select></label>
+          <label>节点<select id="metric-node"><option value="">全部节点</option></select></label>
+          <label>时间范围<select id="metric-range"><option value="15m">最近 15 分钟</option><option value="1h" selected>最近 1 小时</option><option value="6h">最近 6 小时</option><option value="24h">最近 24 小时</option><option value="168h">最近 7 天</option></select></label>
+          <label>聚合<select id="metric-aggregate"><option value="avg">平均值</option><option value="last">最后值</option><option value="min">最小值</option><option value="max">最大值</option><option value="sum">求和</option><option value="rate">每秒增量</option></select></label>
+          <button type="submit">查询</button>
+        </form>
+        <div id="metric-chart" class="chart-panel loading"></div>
+        <div class="section-head"><h2>序列明细</h2><span id="metric-query-meta"></span></div>
+        <div id="metric-series" class="table-wrap"></div>
+        <div class="section-head"><h2>指标目录</h2><span>点击指标立即查询</span></div>
+        <div id="metric-catalog" class="table-wrap loading"></div>
+      </section>
+      <section class="view" id="view-sources">
+        <div class="page-title"><div><h1>数据接入</h1><p>统一查看原生 Agent 与兼容协议入口，不需要部署外部采集或存储服务。</p></div></div>
+        <div id="source-adapters" class="adapter-grid loading"></div>
+        <div class="section-head"><h2>Agent 身份</h2><span id="agent-summary"></span></div>
+        <div id="agent-table" class="table-wrap loading"></div>
+        <div class="section-head"><h2>活跃数据源</h2><span id="source-summary"></span></div>
+        <div id="source-table" class="table-wrap loading"></div>
+        <div class="source-guide">
+          <h2>接入端点</h2>
+          <div id="source-endpoints"></div>
+        </div>
+      </section>
+      <section class="view" id="view-events">
+        <div class="page-title"><div><h1>事件流</h1><p>检索 Agent 直接采集的文件日志、系统事件和结构化运行记录。</p></div><button id="event-refresh" type="button">刷新事件</button></div>
+        <div id="event-metrics" class="metrics compact loading"></div>
+        <form id="event-query" class="event-query">
+          <label class="event-search">关键词<input id="event-search" type="search" placeholder="消息、服务或属性"></label>
+          <label>节点<select id="event-node"><option value="">全部节点</option></select></label>
+          <label>级别<select id="event-severity"><option value="">全部级别</option><option value="critical">严重</option><option value="error">错误</option><option value="warning">警告</option><option value="info">信息</option><option value="debug">调试</option></select></label>
+          <label>类型<select id="event-kind"><option value="">全部类型</option></select></label>
+          <label>来源<select id="event-source"><option value="">全部来源</option></select></label>
+          <label>时间范围<select id="event-range"><option value="1h">最近 1 小时</option><option value="6h">最近 6 小时</option><option value="24h" selected>最近 24 小时</option><option value="168h">最近 7 天</option></select></label>
+          <button type="submit">检索</button>
+        </form>
+        <div class="event-result-head"><span id="event-result-meta">等待检索</span><button id="event-clear" type="button" class="quiet">清空筛选</button></div>
+        <div id="events-table" class="event-stream loading"></div>
+        <div class="load-more"><button id="event-load-more" type="button" class="hidden">加载更早事件</button></div>
+      </section>
+      <section class="view" id="view-databases">
+        <div class="page-title"><div><h1>数据库横向比较</h1><p>比较 PostgreSQL 与 MySQL 的连通性、版本、连接数和延迟。</p></div></div>
+        <div id="databases-table" class="table-wrap loading"></div>
+      </section>
+      <section class="view" id="view-alerts">
+        <div class="page-title"><div><h1>告警中心</h1><p>按严重程度分诊，记录处理人、处置说明和最终状态。</p></div><div class="filter-group"><select id="alert-severity" aria-label="告警级别"><option value="">全部级别</option><option value="critical">严重</option><option value="warning">警告</option><option value="info">信息</option></select><select id="alert-filter" aria-label="告警状态"><option value="open">未处理</option><option value="">全部状态</option><option value="acknowledged">已确认</option><option value="resolved">已解决</option></select></div></div>
+        <div id="alert-bulk" class="bulk-bar"><span>选择告警后可批量确认</span><button id="bulk-ack" type="button" disabled>确认所选</button></div>
+        <div id="alerts-table" class="table-wrap loading"></div>
+      </section>
+      <section class="view" id="view-rules">
+        <div class="page-title"><div><h1>告警规则</h1><p>对任何原生或兼容指标设置节点、来源、标签、阈值和持续时间。</p></div><button id="rule-create" type="button">新建规则</button></div>
+        <div id="rule-metrics" class="metrics compact loading"></div>
+        <div id="rules-table" class="table-wrap loading"></div>
+      </section>
+      <section class="view" id="view-changes">
+        <div class="page-title"><div><h1>变化中心</h1><p>把变化标记为预期、批准、临时允许或禁止。</p></div><select id="change-filter" aria-label="变化分类"><option value="unexpected">待审核</option><option value="">全部</option><option value="expected">预期</option><option value="approved">已批准</option><option value="temporary">临时允许</option><option value="denied">已禁止</option></select></div>
+        <div id="change-bulk" class="bulk-bar"><span>选择变化后可批量审核</span><div class="row-actions"><button id="bulk-change-expected" type="button" disabled>标记预期</button><button id="bulk-change-approved" type="button" disabled>批准所选</button></div></div>
+        <div id="changes-table" class="table-wrap loading"></div>
+      </section>
+      <section class="view" id="view-topology">
+        <div class="page-title"><div><h1>资源拓扑</h1><p>基于 InfraScout 证据聚合部署、监听和依赖关系。</p></div><div class="topology-controls"><select id="topology-view" aria-label="拓扑视角"><option value="all">全部关系</option><option value="deployment">部署拓扑</option><option value="service">服务依赖</option><option value="exposure">网络暴露</option><option value="database">数据库</option><option value="impact">故障影响</option></select><div class="legend"><span><i class="host"></i>主机</span><span><i class="service"></i>服务</span><span><i class="endpoint"></i>端口</span></div></div></div>
+        <div id="topology-stats" class="topology-stats"></div>
+        <div id="topology" class="topology-wrap loading"></div>
+        <div class="section-head"><h2>关系证据与确认</h2><span>低置信度关系使用虚线显示</span></div>
+        <div id="relationship-list" class="relationship-list"></div>
+      </section>
+      <section class="view" id="view-coverage">
+        <div class="page-title"><div><h1>监控覆盖</h1><p>识别主机指标、基础设施清单、漂移和服务探针中的采集空白。</p></div></div>
+        <div id="coverage-metrics" class="metrics compact loading"></div>
+        <div id="coverage-table" class="table-wrap loading"></div>
+      </section>
+    </main>
+  </div>
+  <dialog id="node-dialog">
+    <div class="dialog-head"><div><h2 id="node-title">节点详情</h2><p id="node-subtitle"></p></div><button data-close aria-label="关闭" type="button">关闭</button></div>
+    <div id="node-detail"></div>
+  </dialog>
+  <dialog id="token-dialog">
+    <form method="dialog">
+      <div class="dialog-head"><div><h2>写入凭据</h2><p>仅保存在当前浏览器会话，用于确认告警和审核变化。</p></div><button value="cancel">关闭</button></div>
+      <label>Bearer Token<input id="token-input" type="password" autocomplete="off"></label>
+      <div class="form-actions"><button value="cancel" class="quiet">取消</button><button id="save-token" value="default">保存</button></div>
+    </form>
+  </dialog>
+  <dialog id="action-dialog">
+    <form id="action-form">
+      <div class="dialog-head"><div><h2 id="action-title">处置</h2><p id="action-context"></p></div><button data-close aria-label="关闭" type="button">关闭</button></div>
+      <input id="action-kind" type="hidden">
+      <input id="action-id" type="hidden">
+      <input id="action-value" type="hidden">
+      <div class="action-fields">
+        <label>处理人<input id="action-actor" required maxlength="80" autocomplete="name" placeholder="例如 on-call / release-owner"></label>
+        <label id="release-field" class="hidden">关联发布 ID<input id="action-release" maxlength="160" placeholder="例如 release-2026.08.12"></label>
+        <label id="expiry-field" class="hidden">临时允许至<input id="action-expiry" type="datetime-local"></label>
+        <label>处理说明<textarea id="action-note" required maxlength="1000" rows="4" placeholder="记录判断依据、已执行检查和后续动作"></textarea></label>
+      </div>
+      <div class="form-actions"><button data-close type="button" class="quiet">取消</button><button id="action-submit" type="submit">保存处置</button></div>
+    </form>
+  </dialog>
+  <dialog id="group-dialog">
+    <div class="dialog-head"><div><h2>资源组</h2><p>将相关节点组合后，所有视图和拓扑只显示该组数据。</p></div><button data-close aria-label="关闭" type="button">关闭</button></div>
+    <div id="group-list" class="group-list"></div>
+    <form id="group-form" class="group-form">
+      <input id="group-id" type="hidden">
+      <label>名称<input id="group-name" required maxlength="100" placeholder="例如 生产核心服务"></label>
+      <label>说明<input id="group-description" maxlength="1000" placeholder="环境、业务边界或负责人"></label>
+      <fieldset><legend>包含节点</legend><div id="group-node-list" class="node-checks"></div></fieldset>
+      <div class="form-actions"><button id="group-reset" type="button" class="quiet">新建一组</button><button type="submit">保存资源组</button></div>
+    </form>
+  </dialog>
+  <dialog id="rule-dialog">
+    <form id="rule-form">
+      <div class="dialog-head"><div><h2 id="rule-title">新建告警规则</h2><p>规则按每条节点、来源和标签序列独立计算持续时间。</p></div><button data-close aria-label="关闭" type="button">关闭</button></div>
+      <input id="rule-id" type="hidden">
+      <div class="rule-fields">
+        <label class="wide">名称<input id="rule-name" required maxlength="120"></label>
+        <label class="wide">说明<input id="rule-description" maxlength="1000"></label>
+        <label>指标<select id="rule-metric" required></select></label>
+        <label>比较<select id="rule-operator"><option value="gt">大于</option><option value="gte">大于等于</option><option value="lt">小于</option><option value="lte">小于等于</option><option value="eq">等于</option><option value="neq">不等于</option></select></label>
+        <label>阈值<input id="rule-threshold" type="number" required step="any"></label>
+        <label>持续秒数<input id="rule-for" type="number" required min="0" max="2678400" value="0"></label>
+        <label>严重级别<select id="rule-severity"><option value="warning">警告</option><option value="critical">严重</option><option value="info">提示</option></select></label>
+        <label>状态<select id="rule-enabled"><option value="true">启用</option><option value="false">停用</option></select></label>
+        <label>节点范围<input id="rule-node" maxlength="128" placeholder="留空表示全部节点"></label>
+        <label>来源范围<input id="rule-source" maxlength="128" placeholder="例如 native-agent"></label>
+        <label class="wide">标签选择器<input id="rule-labels" placeholder="service=checkout,environment=production"></label>
+      </div>
+      <div class="form-actions"><button data-close type="button" class="quiet">取消</button><button id="rule-submit" type="submit">保存规则</button></div>
+    </form>
+  </dialog>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script src="/static/suite.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>

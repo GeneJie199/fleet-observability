@@ -1,0 +1,20 @@
+[Unit]
+Description=FleetScope center
+After=network.target
+
+[Service]
+Type=simple
+User=fleetscope
+Group=fleetscope
+EnvironmentFile=-/etc/fleetscope/center.env
+ExecStart=/usr/local/bin/fleetctl serve --addr 127.0.0.1:8770 --data /var/lib/fleetscope
+Restart=on-failure
+RestartSec=5s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/fleetscope
+
+[Install]
+WantedBy=multi-user.target

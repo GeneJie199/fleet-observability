@@ -1,0 +1,45 @@
+{
+  "max_concurrency": 4,
+  "nginx": [
+    {
+      "name": "edge-nginx",
+      "url": "http://127.0.0.1:8080/nginx_status",
+      "timeout_seconds": 5,
+      "required": true,
+      "labels": {"service": "edge"}
+    }
+  ],
+  "redis": [
+    {
+      "name": "session-cache",
+      "address": "127.0.0.1:6379",
+      "password_env": "FLEET_REDIS_PASSWORD",
+      "timeout_seconds": 5,
+      "required": true
+    }
+  ],
+  "databases": [
+    {
+      "name": "orders-postgres",
+      "engine": "postgres",
+      "dsn_env": "FLEET_ORDERS_DSN",
+      "timeout_seconds": 5,
+      "required": true
+    }
+  ],
+  "processes": [
+    {
+      "name": "orders-api",
+      "match": "orders-api",
+      "required": true
+    }
+  ],
+  "docker": [
+    {
+      "name": "local-engine",
+      "socket": "/var/run/docker.sock",
+      "max_containers": 100,
+      "timeout_seconds": 10
+    }
+  ]
+}
