@@ -195,6 +195,19 @@ func TestNodeDetailAppliesFreshness(t *testing.T) {
 	}
 }
 
+func TestSummarizeTreatsTransientCPUAsWarning(t *testing.T) {
+	summary := summarize(Report{NodeID: "node-a", Metrics: map[string]any{"cpu_percent": 99.0, "memory_percent": 40.0, "disk_percent": 50.0}})
+	if summary.Health != "warning" || summary.HealthReason != "cpu_percent is high" {
+		t.Fatalf("transient CPU health = %+v", summary)
+	}
+	for _, metric := range []string{"memory_percent", "disk_percent"} {
+		summary = summarize(Report{NodeID: "node-a", Metrics: map[string]any{metric: 95.0}})
+		if summary.Health != "critical" || summary.HealthReason != metric+" is critically high" {
+			t.Fatalf("%s health = %+v", metric, summary)
+		}
+	}
+}
+
 func TestGroupsCoverageAndRelationshipReview(t *testing.T) {
 	s, err := New(t.TempDir(), "secret")
 	if err != nil {

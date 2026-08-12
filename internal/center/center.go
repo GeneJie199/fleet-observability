@@ -456,7 +456,9 @@ func summarize(report Report) NodeSummary {
 	}
 	for _, key := range []string{"cpu_percent", "memory_percent", "disk_percent"} {
 		if v, ok := metricFloat(report.Metrics, key); ok {
-			if v >= 95 {
+			// A single host CPU sample is intentionally advisory. Memory and
+			// disk exhaustion remain immediately critical.
+			if key != "cpu_percent" && v >= 95 {
 				n.Health = "critical"
 				n.HealthReason = key + " is critically high"
 			} else if v >= 85 && healthRank(n.Health) < healthRank("warning") {

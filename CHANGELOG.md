@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1 - 2026-08-12
+
+- Treat a single high CPU sample as a warning while retaining critical health for memory or disk exhaustion, preventing transient collection spikes from incorrectly blocking release observation windows.
+
 ## 0.3.0 - 2026-08-12
 
 - Replace external collector assumptions with the built-in FleetScope Agent, node identity, bounded disk spools, sequence deduplication, and direct Center ingestion.
