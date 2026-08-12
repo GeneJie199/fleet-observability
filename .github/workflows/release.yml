@@ -22,6 +22,7 @@ jobs:
           go-version-file: go.mod
           cache: true
       - name: Verify formatting
+        if: matrix.os == 'ubuntu-latest'
         shell: bash
         run: test -z "$(gofmt -l .)"
       - run: go vet ./...
