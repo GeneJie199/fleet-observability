@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.2 - 2026-08-13
+
+- Add first-run, empty-resource-group, and all-Agents-stale recovery panels with direct actions for data ingestion, credentials, group management, and refresh.
+- Add domain symbols to the operational navigation, a compact refresh command, and consistent visual product marks to the suite switcher.
+- Preserve expanded alert evidence across refreshes and defer background refresh while an operator is choosing or confirming a change action.
+
 ## 0.3.1 - 2026-08-12
 
 - Treat a single high CPU sample as a warning while retaining critical health for memory or disk exhaustion, preventing transient collection spikes from incorrectly blocking release observation windows.

@@ -13,7 +13,7 @@
       <details class="suite-switcher"><summary>模块</summary><div class="suite-menu"><a data-suite="devcycle">DevCycle<span>研发交付</span></a><a data-suite="infrascout">InfraScout<span>基础设施发现</span></a><a data-suite="fleetscope" class="current">FleetScope<span>原生监控</span></a><a data-suite="releaseguard">ReleaseGuard<span>发布门禁</span></a></div></details>
       <span id="sync-state" role="status">等待同步</span>
       <button id="token-button" class="quiet" type="button">写入凭据</button>
-      <button id="refresh" type="button">刷新</button>
+      <button id="refresh" class="icon-command" type="button" title="立即刷新" aria-label="立即刷新">↻</button>
     </div>
   </header>
   <div id="data-banner" class="data-banner" role="alert"></div>
@@ -40,6 +40,7 @@
     <main>
       <section class="view active" id="view-overview">
         <div class="page-title"><div><h1>全局健康</h1><p>按严重程度聚合节点、告警和待审核变化。</p></div></div>
+        <section id="fleet-start" class="start-panel hidden" aria-live="polite"></section>
         <div id="overview-metrics" class="metrics loading"></div>
         <div class="section-head"><h2>需要处理</h2><span id="overview-time"></span></div>
         <div id="attention" class="table-wrap loading"></div>

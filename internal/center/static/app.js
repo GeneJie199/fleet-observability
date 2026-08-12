@@ -229,6 +229,7 @@
       [data.pending_changes, "待审核变化", data.pending_changes ? "warning" : ""],
     ];
     $("#overview-metrics").classList.remove("loading");
+    renderStartPanel(data);
     const targets = ["nodes", "nodes", "nodes", "nodes", "alerts", "changes"];
     $("#overview-metrics").innerHTML = items.map(([value, name, className], index) => `<button type="button" data-go-view="${targets[index]}" class="metric ${className}"><b>${fmt(value)}</b><span>${name}</span><small>查看详情</small></button>`).join("");
     $("#overview-time").textContent = `数据生成于 ${date(data.generated_at)}`;
@@ -236,6 +237,20 @@
     $("#attention").innerHTML = data.needs_attention.length ? nodeTable(data.needs_attention) : empty("当前没有需要立即处理的节点。");
     const resourceNames = { hosts: "主机", processes: "进程", endpoints: "监听端口", services: "服务", containers: "容器", networks: "网络", volumes: "卷" };
     $("#resource-totals").innerHTML = Object.entries(data.resource_totals || {}).map(([key, value]) => `<div class="resource-item"><b>${fmt(value)}</b><span>${esc(resourceNames[key] || key)}</span></div>`).join("") || empty("尚无资源数据");
+  }
+
+  function renderStartPanel(data) {
+    const panel = $("#fleet-start");
+    let content = "";
+    if (!data.total_nodes && state.activeGroup) {
+      content = `<span class="start-panel-mark" aria-hidden="true">0</span><div><strong>当前资源组没有节点</strong><p>把节点加入资源组，或切回全部资源继续查看。</p></div><button type="button" data-open-groups>管理资源组</button>`;
+    } else if (!data.total_nodes) {
+      content = `<span class="start-panel-mark" aria-hidden="true">1</span><div><strong>接入第一台机器</strong><p>原生 Agent 会直接上报主机指标、事件和 InfraScout 资产证据，不依赖外部采集器。</p></div><div class="start-panel-actions"><button type="button" data-go-view="sources">打开数据接入</button><button type="button" class="quiet" data-open-token>写入凭据</button></div>`;
+    } else if (data.stale_nodes === data.total_nodes) {
+      content = `<span class="start-panel-mark warning" aria-hidden="true">!</span><div><strong>所有 Agent 已停止上报</strong><p>当前统计来自历史数据。先恢复 Agent 或接入链路，再据此处理告警与变化。</p></div><div class="start-panel-actions"><button type="button" data-go-view="sources">检查数据接入</button><button type="button" class="quiet" data-retry>重新同步</button></div>`;
+    }
+    panel.innerHTML = content;
+    panel.classList.toggle("hidden", !content);
   }
 
   function renderNodes() {
@@ -536,14 +551,16 @@
     const level = $("#alert-severity").value;
     const rows = state.alerts.filter((alert) => (!filter || alert.status === filter) && (!level || alert.severity.toLowerCase() === level));
     const target = $("#alerts-table");
+    const openEvidence = new Set([...target.querySelectorAll("details[data-alert-evidence][open]")].map((details) => details.dataset.alertEvidence));
     target.classList.remove("loading");
     const visible = new Set(rows.map((alert) => alert.id));
     [...state.selectedAlerts].forEach((id) => { if (!visible.has(id)) state.selectedAlerts.delete(id); });
     target.innerHTML = rows.length ? `<table><thead><tr><th><span class="sr-only">选择</span></th><th>级别</th><th>告警与证据</th><th>节点</th><th>状态与处理</th><th>更新时间</th><th>操作</th></tr></thead><tbody>${rows.map((alert) => {
       const evidence = alert.evidence || {}, metric = evidence.metric || "";
       const evidenceRows = Object.entries(evidence).filter(([key]) => key !== "metric").map(([key, value]) => `<dt>${esc(key)}</dt><dd>${esc(typeof value === "object" ? JSON.stringify(value) : value)}</dd>`).join("");
-      return `<tr class="alert-row severity-${esc(alert.severity)}"><td><input class="row-check" type="checkbox" data-alert-select="${esc(alert.id)}" aria-label="选择 ${esc(alert.title)}" ${state.selectedAlerts.has(alert.id) ? "checked" : ""}></td><td>${severity(alert.severity)}</td><td><span class="primary">${esc(alert.title)}</span><span class="secondary">${esc(alert.detail)}</span>${alert.value !== undefined || evidenceRows ? `<details class="alert-evidence"><summary>判断依据</summary><div class="alert-threshold"><b>${fmt(alert.value)}</b><span>当前值</span><b>${fmt(alert.threshold)}</b><span>阈值</span></div>${evidenceRows ? `<dl>${evidenceRows}</dl>` : ""}</details>` : ""}</td><td><button class="entity-link" data-node="${esc(alert.node_id)}" type="button">${esc(alert.node_id)}</button></td><td>${status(alert.status)}${alert.assignee ? `<span class="secondary">${esc(alert.assignee)}${alert.note ? ` · ${esc(alert.note)}` : ""}</span>` : ""}</td><td>${date(alert.updated_at || alert.observed_at)}</td><td><div class="row-actions">${metric ? `<button data-alert-metric="${esc(metric)}" data-alert-node="${esc(alert.node_id)}" type="button">查指标</button>` : ""}${alert.status === "open" ? `<button data-alert="${esc(alert.id)}" data-status="acknowledged" type="button">确认</button>` : ""}${alert.status !== "resolved" ? `<button data-alert="${esc(alert.id)}" data-status="resolved" type="button">解决</button>` : `<button data-alert="${esc(alert.id)}" data-status="open" type="button">重新打开</button>`}</div></td></tr>`;
+      return `<tr class="alert-row severity-${esc(alert.severity)}"><td><input class="row-check" type="checkbox" data-alert-select="${esc(alert.id)}" aria-label="选择 ${esc(alert.title)}" ${state.selectedAlerts.has(alert.id) ? "checked" : ""}></td><td>${severity(alert.severity)}</td><td><span class="primary">${esc(alert.title)}</span><span class="secondary">${esc(alert.detail)}</span>${alert.value !== undefined || evidenceRows ? `<details class="alert-evidence" data-alert-evidence="${esc(alert.id)}"><summary>判断依据</summary><div class="alert-threshold"><b>${fmt(alert.value)}</b><span>当前值</span><b>${fmt(alert.threshold)}</b><span>阈值</span></div>${evidenceRows ? `<dl>${evidenceRows}</dl>` : ""}</details>` : ""}</td><td><button class="entity-link" data-node="${esc(alert.node_id)}" type="button">${esc(alert.node_id)}</button></td><td>${status(alert.status)}${alert.assignee ? `<span class="secondary">${esc(alert.assignee)}${alert.note ? ` · ${esc(alert.note)}` : ""}</span>` : ""}</td><td>${date(alert.updated_at || alert.observed_at)}</td><td><div class="row-actions">${metric ? `<button data-alert-metric="${esc(metric)}" data-alert-node="${esc(alert.node_id)}" type="button">查指标</button>` : ""}${alert.status === "open" ? `<button data-alert="${esc(alert.id)}" data-status="acknowledged" type="button">确认</button>` : ""}${alert.status !== "resolved" ? `<button data-alert="${esc(alert.id)}" data-status="resolved" type="button">解决</button>` : `<button data-alert="${esc(alert.id)}" data-status="open" type="button">重新打开</button>`}</div></td></tr>`;
     }).join("")}</tbody></table>` : empty("当前筛选条件下没有告警。");
+    target.querySelectorAll("details[data-alert-evidence]").forEach((details) => { details.open = openEvidence.has(details.dataset.alertEvidence); });
     updateBulkBar();
   }
 
@@ -724,6 +741,8 @@
       return;
     }
     if (event.target.closest("[data-retry]")) { refresh(); return; }
+    if (event.target.closest("[data-open-token]")) { $("#token-input").value = state.token; $("#token-dialog").showModal(); return; }
+    if (event.target.closest("[data-open-groups]")) { resetGroupForm(); $("#group-dialog").showModal(); return; }
     const metricRow = event.target.closest("[data-metric]");
     if (metricRow) {
       $("#metric-name").value = metricRow.dataset.metric;
@@ -912,6 +931,9 @@
   $("#token-button").addEventListener("click", () => { $("#token-input").value = state.token; $("#token-dialog").showModal(); });
   $("#save-token").addEventListener("click", () => { state.token = $("#token-input").value.trim(); sessionStorage.setItem("fleet_token", state.token); toast("管理凭据已保存到当前会话"); window.setTimeout(refresh, 0); });
   refresh();
-  window.setInterval(function () { if (!document.hidden) refresh(); }, 30000);
-  document.addEventListener("visibilitychange", function () { if (!document.hidden) refresh(); });
+  function userIsChoosingAction() {
+    return Boolean(document.querySelector("dialog[open]") || document.activeElement?.matches("select[data-change]"));
+  }
+  window.setInterval(function () { if (!document.hidden && !userIsChoosingAction()) refresh(); }, 30000);
+  document.addEventListener("visibilitychange", function () { if (!document.hidden && !userIsChoosingAction()) refresh(); });
 })();
