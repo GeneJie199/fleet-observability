@@ -59,11 +59,9 @@ func collectDockerTarget(ctx context.Context, target DockerTarget, observedAt ti
 	if socket == "" {
 		socket = "/var/run/docker.sock"
 	}
-	if strings.HasPrefix(socket, "unix://") {
-		socket = strings.TrimPrefix(socket, "unix://")
-	}
+	socket = strings.TrimPrefix(socket, "unix://")
 	if _, err := os.Stat(socket); err != nil {
-		result.err = errors.New("Docker Engine socket is unavailable")
+		result.err = errors.New("docker engine socket is unavailable")
 		return result
 	}
 	client := dockerHTTPClient(socket, target.TimeoutSeconds)
@@ -120,16 +118,16 @@ func listDockerContainers(ctx context.Context, client *http.Client, maximum int)
 	request, _ := http.NewRequestWithContext(ctx, http.MethodGet, "http://docker/v1.41/containers/json?all=1", nil)
 	response, err := client.Do(request)
 	if err != nil {
-		return nil, errors.New("Docker Engine list request failed")
+		return nil, errors.New("docker engine list request failed")
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Docker Engine returned HTTP %d", response.StatusCode)
+		return nil, fmt.Errorf("docker engine returned HTTP %d", response.StatusCode)
 	}
 	var containers []dockerContainer
 	decoder := json.NewDecoder(io.LimitReader(response.Body, 4<<20))
 	if err := decoder.Decode(&containers); err != nil {
-		return nil, errors.New("Docker Engine returned invalid container data")
+		return nil, errors.New("docker engine returned invalid container data")
 	}
 	if len(containers) > maximum {
 		containers = containers[:maximum]
