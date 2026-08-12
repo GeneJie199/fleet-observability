@@ -69,7 +69,7 @@ jobs:
         run: |
           version="${GITHUB_REF_NAME#v}"
           go build -trimpath -ldflags "-s -w -X main.version=${version}" -o "fleetctl-${GOOS}-${GOARCH}${{ matrix.ext }}" ./cmd/fleetctl
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: fleetctl-${{ matrix.goos }}-${{ matrix.goarch }}
           path: fleetctl-*
@@ -78,13 +78,14 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: dist
           merge-multiple: true
       - name: Checksums
         run: cd dist && sha256sum fleetctl-* > checksums.txt
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           files: dist/*
           generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
