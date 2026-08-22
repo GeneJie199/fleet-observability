@@ -2,6 +2,7 @@ package telemetry
 
 import (
 	"bufio"
+	"container/heap"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -42,7 +43,12 @@ type seriesData struct {
 	Labels map[string]string
 	Kind   MetricKind
 	Unit   string
-	Points []Point
+	Points []sample
+}
+
+type sample struct {
+	TimestampMS int64
+	Value       float64
 }
 
 type storedPoint struct {
@@ -155,30 +161,13 @@ func (s *Store) Append(batch Batch) (bool, error) {
 	if len(s.series)+len(newKeys) > s.maxSeries {
 		return false, fmt.Errorf("series cardinality limit exceeded: %d", s.maxSeries)
 	}
-	newSamples := map[string]map[int64]bool{}
-	for _, point := range batch.Points {
-		key := SeriesKey(batch.NodeID, batch.Source, point)
-		if s.hasPoint(key, point.TimestampMS) {
-			continue
-		}
-		if newSamples[key] == nil {
-			newSamples[key] = map[int64]bool{}
-		}
-		newSamples[key][point.TimestampMS] = true
-	}
-	newSampleCount := 0
-	for _, timestamps := range newSamples {
-		newSampleCount += len(timestamps)
-	}
-	if s.samples+newSampleCount > s.maxSamples {
-		return false, fmt.Errorf("retained sample limit exceeded: %d", s.maxSamples)
-	}
 	if err := s.appendSegments(batch); err != nil {
 		return false, err
 	}
 	for _, point := range batch.Points {
 		s.addPoint(batch.NodeID, batch.Source, point)
 	}
+	s.enforceSampleLimitLocked()
 	if batch.Sequence > 0 {
 		s.sequence[sequenceKey] = batch.Sequence
 		if err := s.writeSequences(); err != nil {
@@ -214,6 +203,12 @@ func (s *Store) Query(query Query) QueryResult {
 			continue
 		}
 		points = aggregatePoints(points, query.StartMS, query.Step.Milliseconds(), query.Aggregate, series.Kind)
+		for index := range points {
+			points[index].Metric = series.Metric
+			points[index].Labels = cloneLabels(series.Labels)
+			points[index].Kind = series.Kind
+			points[index].Unit = series.Unit
+		}
 		result.Series = append(result.Series, SeriesResult{Metric: series.Metric, NodeID: series.NodeID, Source: series.Source, Labels: cloneLabels(series.Labels), Kind: series.Kind, Unit: series.Unit, Points: points})
 	}
 	sort.Slice(result.Series, func(i, j int) bool {
@@ -312,7 +307,7 @@ func (s *Store) pruneLocked(now time.Time) error {
 	for key, series := range s.series {
 		index := sort.Search(len(series.Points), func(i int) bool { return series.Points[i].TimestampMS >= cutoff })
 		s.samples -= index
-		series.Points = append([]Point(nil), series.Points[index:]...)
+		series.Points = append([]sample(nil), series.Points[index:]...)
 		if len(series.Points) == 0 {
 			delete(s.series, key)
 		}
@@ -333,31 +328,73 @@ func (s *Store) pruneLocked(now time.Time) error {
 	return nil
 }
 
-func (s *Store) hasPoint(key string, timestampMS int64) bool {
-	series := s.series[key]
-	if series == nil {
-		return false
-	}
-	index := sort.Search(len(series.Points), func(i int) bool { return series.Points[i].TimestampMS >= timestampMS })
-	return index < len(series.Points) && series.Points[index].TimestampMS == timestampMS
-}
-
 func (s *Store) addPoint(nodeID, source string, point Point) {
 	key := SeriesKey(nodeID, source, point)
 	series := s.series[key]
 	if series == nil {
-		series = &seriesData{Metric: point.Metric, NodeID: nodeID, Source: source, Labels: cloneLabels(point.Labels), Kind: point.Kind, Unit: point.Unit, Points: []Point{}}
+		series = &seriesData{Metric: point.Metric, NodeID: nodeID, Source: source, Labels: cloneLabels(point.Labels), Kind: point.Kind, Unit: point.Unit, Points: []sample{}}
 		s.series[key] = series
 	}
 	index := sort.Search(len(series.Points), func(i int) bool { return series.Points[i].TimestampMS >= point.TimestampMS })
 	if index < len(series.Points) && series.Points[index].TimestampMS == point.TimestampMS {
-		series.Points[index] = point
+		series.Points[index] = sample{TimestampMS: point.TimestampMS, Value: point.Value}
 		return
 	}
-	series.Points = append(series.Points, Point{})
+	series.Points = append(series.Points, sample{})
 	copy(series.Points[index+1:], series.Points[index:])
-	series.Points[index] = point
+	series.Points[index] = sample{TimestampMS: point.TimestampMS, Value: point.Value}
 	s.samples++
+}
+
+type oldestSample struct {
+	key       string
+	timestamp int64
+	index     int
+}
+
+type oldestSampleHeap []oldestSample
+
+func (items oldestSampleHeap) Len() int           { return len(items) }
+func (items oldestSampleHeap) Less(i, j int) bool { return items[i].timestamp < items[j].timestamp }
+func (items oldestSampleHeap) Swap(i, j int)      { items[i], items[j] = items[j], items[i] }
+func (items *oldestSampleHeap) Push(value any)    { *items = append(*items, value.(oldestSample)) }
+func (items *oldestSampleHeap) Pop() any {
+	old := *items
+	last := old[len(old)-1]
+	*items = old[:len(old)-1]
+	return last
+}
+
+func (s *Store) enforceSampleLimitLocked() {
+	excess := s.samples - s.maxSamples
+	if excess <= 0 {
+		return
+	}
+	queue := &oldestSampleHeap{}
+	heap.Init(queue)
+	for key, series := range s.series {
+		if len(series.Points) > 0 {
+			heap.Push(queue, oldestSample{key: key, timestamp: series.Points[0].TimestampMS})
+		}
+	}
+	removed := map[string]int{}
+	for excess > 0 && queue.Len() > 0 {
+		item := heap.Pop(queue).(oldestSample)
+		removed[item.key]++
+		excess--
+		next := item.index + 1
+		if next < len(s.series[item.key].Points) {
+			heap.Push(queue, oldestSample{key: item.key, timestamp: s.series[item.key].Points[next].TimestampMS, index: next})
+		}
+	}
+	for key, count := range removed {
+		series := s.series[key]
+		s.samples -= count
+		series.Points = append([]sample(nil), series.Points[count:]...)
+		if len(series.Points) == 0 {
+			delete(s.series, key)
+		}
+	}
 }
 
 func (s *Store) appendSegments(batch Batch) error {
@@ -396,6 +433,7 @@ func (s *Store) loadSegments(now time.Time) error {
 		return err
 	}
 	cutoff := now.Add(-s.retention).UnixMilli()
+	sort.Slice(entries, func(i, j int) bool { return entries[i].Name() > entries[j].Name() })
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".ndjson") {
 			continue
@@ -414,10 +452,6 @@ func (s *Store) loadSegments(now time.Time) error {
 					_ = file.Close()
 					return fmt.Errorf("stored telemetry exceeds series cardinality limit: %d", s.maxSeries)
 				}
-				if !s.hasPoint(key, point.TimestampMS) && s.samples >= s.maxSamples {
-					_ = file.Close()
-					return fmt.Errorf("stored telemetry exceeds retained sample limit: %d", s.maxSamples)
-				}
 				s.addPoint(point.NodeID, point.Source, point.Point)
 				sequenceKey := point.NodeID + "\x00" + point.Source
 				if point.Sequence > s.sequence[sequenceKey] {
@@ -429,6 +463,10 @@ func (s *Store) loadSegments(now time.Time) error {
 		_ = file.Close()
 		if scanErr != nil {
 			return scanErr
+		}
+		s.enforceSampleLimitLocked()
+		if s.samples >= s.maxSamples {
+			break
 		}
 	}
 	for _, series := range s.series {
@@ -498,10 +536,14 @@ func labelsMatch(series, wanted map[string]string) bool {
 	return true
 }
 
-func rangePoints(points []Point, startMS, endMS int64) []Point {
+func rangePoints(points []sample, startMS, endMS int64) []Point {
 	start := sort.Search(len(points), func(i int) bool { return points[i].TimestampMS >= startMS })
 	end := sort.Search(len(points), func(i int) bool { return points[i].TimestampMS > endMS })
-	return append([]Point(nil), points[start:end]...)
+	out := make([]Point, end-start)
+	for index, point := range points[start:end] {
+		out[index] = Point{TimestampMS: point.TimestampMS, Value: point.Value}
+	}
+	return out
 }
 
 func aggregatePoints(points []Point, startMS, stepMS int64, aggregate string, kind MetricKind) []Point {

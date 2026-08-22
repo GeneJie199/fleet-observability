@@ -55,4 +55,6 @@ The file collector accepts JSON or text lines. Recognized JSON fields include `t
 
 Center defaults are 30 days, 50,000 metric series, 5,000,000 retained metric samples, 10,000 points per batch, 500,000 events, and 5,000 events per batch. Configure them with `--telemetry-retention`, `--telemetry-max-series`, `--telemetry-max-samples`, `--telemetry-max-batch`, `--event-retention`, `--event-max-entries`, and `--event-max-batch`.
 
+Time and capacity limits are both active. At the sample limit, the store rolls forward by evicting the oldest in-memory samples while continuing to accept new data; retained segment files are still removed according to the time limit. See [Scale baseline](scale-baseline.md) for measured profiles.
+
 Retention pruning runs at startup and periodically while stores are receiving data. Exceeding a hard capacity limit rejects new input with an explicit error; it never silently evicts an unrelated active series or event.

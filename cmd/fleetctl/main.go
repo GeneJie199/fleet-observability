@@ -74,7 +74,7 @@ func serve(args []string) error {
 	telemetryRetention := fs.Duration("telemetry-retention", 30*24*time.Hour, "native metric retention")
 	telemetryMaxSeries := fs.Int("telemetry-max-series", 50000, "maximum retained metric series")
 	telemetryMaxBatch := fs.Int("telemetry-max-batch", 10000, "maximum points per telemetry batch")
-	telemetryMaxSamples := fs.Int("telemetry-max-samples", 5000000, "maximum retained metric samples")
+	telemetryMaxSamples := fs.Int("telemetry-max-samples", 5000000, "rolling maximum retained metric samples")
 	eventRetention := fs.Duration("event-retention", 30*24*time.Hour, "native event and log retention")
 	eventMaxEntries := fs.Int("event-max-entries", 500000, "maximum retained events")
 	eventMaxBatch := fs.Int("event-max-batch", 5000, "maximum events per batch")

@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -113,9 +112,6 @@ func (store *Store) Append(batch Batch) (bool, error) {
 	if batch.Sequence > 0 && batch.Sequence <= store.sequence[key] {
 		return true, nil
 	}
-	if len(store.events)+len(batch.Events) > store.maxEvents {
-		return false, fmt.Errorf("event store limit exceeded: %d retained events", store.maxEvents)
-	}
 	if err := store.appendSegments(batch); err != nil {
 		return false, err
 	}
@@ -123,13 +119,16 @@ func (store *Store) Append(batch Batch) (bool, error) {
 		store.events = append(store.events, Record{NodeID: batch.NodeID, Source: batch.Source, Entry: entry})
 	}
 	sort.Slice(store.events, func(i, j int) bool { return store.events[i].TimestampMS < store.events[j].TimestampMS })
+	var sequenceErr error
 	if batch.Sequence > 0 {
 		store.sequence[key] = batch.Sequence
-		if err := store.writeSequences(); err != nil {
-			return false, err
-		}
+		sequenceErr = store.writeSequences()
 	}
-	store.refreshSource(batch.NodeID, batch.Source, batch.Sequence)
+	store.enforceEventLimitLocked()
+	store.rebuildSources()
+	if sequenceErr != nil {
+		return false, sequenceErr
+	}
 	return false, nil
 }
 
@@ -246,6 +245,12 @@ func (store *Store) pruneLocked(now time.Time) error {
 	return nil
 }
 
+func (store *Store) enforceEventLimitLocked() {
+	if excess := len(store.events) - store.maxEvents; excess > 0 {
+		store.events = append([]Record(nil), store.events[excess:]...)
+	}
+}
+
 func (store *Store) appendSegments(batch Batch) error {
 	byDay := map[string][]Record{}
 	for _, entry := range batch.Events {
@@ -281,6 +286,7 @@ func (store *Store) load(now time.Time) error {
 	if err != nil {
 		return err
 	}
+	sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".ndjson") {
 			continue
@@ -306,8 +312,9 @@ func (store *Store) load(now time.Time) error {
 		if scanErr != nil {
 			return scanErr
 		}
+		sort.Slice(store.events, func(i, j int) bool { return store.events[i].TimestampMS < store.events[j].TimestampMS })
+		store.enforceEventLimitLocked()
 	}
-	sort.Slice(store.events, func(i, j int) bool { return store.events[i].TimestampMS < store.events[j].TimestampMS })
 	store.rebuildSources()
 	return nil
 }

@@ -3,7 +3,6 @@ package telemetry
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 )
@@ -16,8 +15,8 @@ func TestStoreAppendQueryRestartAndSequenceDedup(t *testing.T) {
 		t.Fatal(err)
 	}
 	batch := Batch{Schema: BatchSchema, NodeID: "node-a", Source: "native", Sequence: 7, SentAt: now.Format(time.RFC3339Nano), Points: []Point{
-		{Metric: "cpu_percent", TimestampMS: now.Add(-20 * time.Second).UnixMilli(), Value: 20, Kind: Gauge},
-		{Metric: "cpu_percent", TimestampMS: now.Add(-10 * time.Second).UnixMilli(), Value: 40, Kind: Gauge},
+		{Metric: "cpu_percent", TimestampMS: now.Add(-20 * time.Second).UnixMilli(), Value: 20, Kind: Gauge, Unit: "%", Labels: map[string]string{"environment": "test"}},
+		{Metric: "cpu_percent", TimestampMS: now.Add(-10 * time.Second).UnixMilli(), Value: 40, Kind: Gauge, Unit: "%", Labels: map[string]string{"environment": "test"}},
 	}}
 	duplicate, err := store.Append(batch)
 	if err != nil || duplicate {
@@ -29,6 +28,10 @@ func TestStoreAppendQueryRestartAndSequenceDedup(t *testing.T) {
 	result := store.Query(Query{Metric: "cpu_percent", NodeID: "node-a", StartMS: now.Add(-time.Minute).UnixMilli(), EndMS: now.UnixMilli(), Step: time.Minute, Aggregate: "avg"})
 	if len(result.Series) != 1 || len(result.Series[0].Points) != 1 || result.Series[0].Points[0].Value != 30 {
 		t.Fatalf("query = %+v", result)
+	}
+	point := result.Series[0].Points[0]
+	if point.Metric != "cpu_percent" || point.Kind != Gauge || point.Unit != "%" || point.Labels["environment"] != "test" {
+		t.Fatalf("query point lost series metadata: %+v", point)
 	}
 	if err := os.Remove(filepath.Join(dir, "sequences.json")); err != nil {
 		t.Fatal(err)
@@ -73,9 +76,10 @@ func TestStoreCardinalityLimit(t *testing.T) {
 	}
 }
 
-func TestStoreRetainedSampleLimitAllowsReplacement(t *testing.T) {
+func TestStoreRetainedSampleLimitRollsForward(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Second)
-	store, err := OpenStore(t.TempDir(), StoreOptions{MaxSeries: 10, MaxSamples: 2})
+	dir := t.TempDir()
+	store, err := OpenStore(dir, StoreOptions{MaxSeries: 10, MaxSamples: 2})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,8 +95,52 @@ func TestStoreRetainedSampleLimitAllowsReplacement(t *testing.T) {
 		t.Fatalf("replace existing timestamp: %v", err)
 	}
 	overflow := Batch{NodeID: "node-a", Source: "native", Sequence: 3, SentAt: now.Format(time.RFC3339Nano), Points: []Point{{Metric: "cpu_percent", TimestampMS: now.Add(time.Second).UnixMilli(), Value: 4, Kind: Gauge}}}
-	if _, err = store.Append(overflow); err == nil || !strings.Contains(err.Error(), "retained sample limit") {
-		t.Fatalf("overflow error = %v", err)
+	if _, err = store.Append(overflow); err != nil {
+		t.Fatalf("rolling append error = %v", err)
+	}
+	result := store.Query(Query{Metric: "cpu_percent", StartMS: now.Add(-time.Minute).UnixMilli(), EndMS: now.Add(time.Minute).UnixMilli(), Step: time.Millisecond})
+	if len(result.Series) != 1 || len(result.Series[0].Points) != 2 || result.Series[0].Points[0].Value != 3 || result.Series[0].Points[1].Value != 4 {
+		t.Fatalf("rolling query = %+v", result)
+	}
+	restarted, err := OpenStore(dir, StoreOptions{MaxSeries: 10, MaxSamples: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result = restarted.Query(Query{Metric: "cpu_percent", StartMS: now.Add(-time.Minute).UnixMilli(), EndMS: now.Add(time.Minute).UnixMilli(), Step: time.Millisecond})
+	if len(result.Series) != 1 || len(result.Series[0].Points) != 2 || result.Series[0].Points[0].Value != 3 || result.Series[0].Points[1].Value != 4 {
+		t.Fatalf("restarted rolling query = %+v", result)
+	}
+}
+
+func TestStoreWriteFailureDoesNotMutateMemoryAndCanRetry(t *testing.T) {
+	dir := t.TempDir()
+	store, err := OpenStore(dir, StoreOptions{MaxSeries: 10, MaxSamples: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	segments := filepath.Join(dir, "segments")
+	if err := os.Remove(segments); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(segments, []byte("unavailable"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC().Truncate(time.Second)
+	batch := Batch{Schema: BatchSchema, NodeID: "node-a", Source: "native", Sequence: 1, SentAt: now.Format(time.RFC3339Nano), Points: []Point{{Metric: "cpu_percent", TimestampMS: now.UnixMilli(), Value: 25, Kind: Gauge}}}
+	if _, appendErr := store.Append(batch); appendErr == nil {
+		t.Fatal("expected durable store write failure")
+	}
+	if len(store.Catalog()) != 0 {
+		t.Fatalf("failed append mutated memory: %+v", store.Catalog())
+	}
+	if err := os.Remove(segments); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(segments, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if duplicate, appendErr := store.Append(batch); appendErr != nil || duplicate {
+		t.Fatalf("retry = (%v, %v)", duplicate, appendErr)
 	}
 }
 
