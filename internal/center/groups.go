@@ -386,6 +386,13 @@ func (s *Server) updateRelationship(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	previous := "unreviewed"
+	for _, review := range reviews {
+		if review.ID == id {
+			previous = review.Confirmation
+			break
+		}
+	}
 	in.ID = id
 	in.ReviewedBy = strings.TrimSpace(in.ReviewedBy)
 	in.Note = strings.TrimSpace(in.Note)
@@ -402,6 +409,19 @@ func (s *Server) updateRelationship(w http.ResponseWriter, r *http.Request) {
 		reviews = append(reviews, in)
 	}
 	if err := s.writeRelationshipReviews(reviews); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	audit, err := s.readRelationshipAudit()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	audit = append(audit, RelationshipAudit{ID: stableID("relationship_audit", id, in.UpdatedAt, in.ReviewedBy), RelationshipID: id, Action: "review", Previous: previous, Current: in.Confirmation, ReviewedBy: in.ReviewedBy, Note: in.Note, CreatedAt: in.UpdatedAt})
+	if len(audit) > 10000 {
+		audit = audit[len(audit)-10000:]
+	}
+	if err := s.writeRelationshipAudit(audit); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -432,4 +452,35 @@ func (s *Server) readRelationshipReviews() ([]RelationshipReview, error) {
 
 func (s *Server) writeRelationshipReviews(reviews []RelationshipReview) error {
 	return writeJSONFile(filepath.Join(s.dir, "topology-reviews.json"), reviews)
+}
+
+func (s *Server) readRelationshipAudit() ([]RelationshipAudit, error) {
+	var audit []RelationshipAudit
+	err := readJSONFile(filepath.Join(s.dir, "topology-review-audit.json"), &audit)
+	if errors.Is(err, os.ErrNotExist) {
+		return []RelationshipAudit{}, nil
+	}
+	return audit, err
+}
+
+func (s *Server) writeRelationshipAudit(audit []RelationshipAudit) error {
+	return writeJSONFile(filepath.Join(s.dir, "topology-review-audit.json"), audit)
+}
+
+func (s *Server) listRelationshipAudit(w http.ResponseWriter, r *http.Request) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	audit, err := s.readRelationshipAudit()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	relationshipID := r.URL.Query().Get("relationship")
+	out := make([]RelationshipAudit, 0, len(audit))
+	for i := len(audit) - 1; i >= 0; i-- {
+		if relationshipID == "" || audit[i].RelationshipID == relationshipID {
+			out = append(out, audit[i])
+		}
+	}
+	writeJSON(w, out)
 }

@@ -176,6 +176,35 @@ func TestRejectsTraversalAndInvalidJSON(t *testing.T) {
 	}
 }
 
+func TestRejectsCrossSiteMutationsWithoutConsoleIntent(t *testing.T) {
+	s, err := New(t.TempDir(), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/groups", strings.NewReader(`{"name":"production","node_ids":[]}`))
+	request.Header.Set("Origin", "https://attacker.example")
+	recorder := httptest.NewRecorder()
+	s.Handler().ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("cross-site mutation = %d %s", recorder.Code, recorder.Body.String())
+	}
+	request = httptest.NewRequest(http.MethodPost, "/api/v1/groups", strings.NewReader(`{"name":"production","node_ids":[]}`))
+	request.Header.Set("Origin", "http://127.0.0.1:8770")
+	request.Header.Set("X-FleetScope-Request", "console")
+	recorder = httptest.NewRecorder()
+	s.Handler().ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusCreated {
+		t.Fatalf("console mutation = %d %s", recorder.Code, recorder.Body.String())
+	}
+	request = httptest.NewRequest(http.MethodPost, "/api/v1/nodes/node-a/report", strings.NewReader(`{}`))
+	request.Header.Set("Sec-Fetch-Site", "cross-site")
+	recorder = httptest.NewRecorder()
+	s.Handler().ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("cross-site agent mutation = %d %s", recorder.Code, recorder.Body.String())
+	}
+}
+
 func TestNodeDetailAppliesFreshness(t *testing.T) {
 	s, err := New(t.TempDir(), "")
 	if err != nil {

@@ -10,32 +10,35 @@
   <header class="topbar">
     <div class="product-brand"><span class="suite-kicker">AI DEVOPS OPEN SUITE</span><div><strong class="product-name">FleetScope</strong><span class="product-subtitle">原生监控中心</span></div></div>
     <div class="top-actions">
-      <details class="suite-switcher"><summary>模块</summary><div class="suite-menu"><a data-suite="devcycle">DevCycle<span>研发交付</span></a><a data-suite="infrascout">InfraScout<span>基础设施发现</span></a><a data-suite="fleetscope" class="current">FleetScope<span>原生监控</span></a><a data-suite="releaseguard">ReleaseGuard<span>发布门禁</span></a></div></details>
+      <details class="suite-switcher"><summary><i data-lucide="blocks"></i>模块</summary><div class="suite-menu"><a data-suite="devcycle">DevCycle<span>研发交付</span></a><a data-suite="infrascout">InfraScout<span>基础设施发现</span></a><a data-suite="fleetscope" class="current">FleetScope<span>原生监控</span></a><a data-suite="releaseguard">ReleaseGuard<span>发布门禁</span></a></div></details>
       <span id="sync-state" role="status">等待同步</span>
-      <button id="token-button" class="quiet" type="button">写入凭据</button>
-      <button id="refresh" class="icon-command" type="button" title="立即刷新" aria-label="立即刷新">↻</button>
+      <button id="token-button" class="quiet command-with-icon" type="button"><i data-lucide="key-round"></i>管理凭据</button>
+      <button id="refresh" class="icon-command" type="button" title="立即刷新" aria-label="立即刷新"><i data-lucide="refresh-cw"></i></button>
     </div>
   </header>
   <div id="data-banner" class="data-banner" role="alert"></div>
   <div class="contextbar">
     <label for="group-select">资源组</label>
     <select id="group-select"><option value="">全部资源</option></select>
-    <button id="group-manage" type="button">管理资源组</button>
+    <button id="group-manage" class="command-with-icon" type="button"><i data-lucide="settings-2"></i>管理资源组</button>
     <span id="group-summary">全部节点与资源</span>
   </div>
   <div class="shell">
     <nav aria-label="主导航">
-      <button class="active" data-view="overview" type="button" aria-current="page">总览</button>
-      <button data-view="nodes" type="button">节点</button>
-      <button data-view="metrics" type="button">指标分析</button>
-      <button data-view="sources" type="button">数据接入</button>
-      <button data-view="events" type="button">事件流</button>
-      <button data-view="databases" type="button">数据库</button>
-      <button data-view="alerts" type="button">告警 <span id="alert-badge"></span></button>
-      <button data-view="rules" type="button">告警规则</button>
-      <button data-view="changes" type="button">变化 <span id="change-badge"></span></button>
-      <button data-view="topology" type="button">拓扑</button>
-      <button data-view="coverage" type="button">覆盖</button>
+      <button class="active" data-view="overview" type="button" aria-current="page"><i data-lucide="layout-dashboard"></i>总览</button>
+      <button data-view="nodes" type="button"><i data-lucide="server"></i>节点</button>
+      <button data-view="metrics" type="button"><i data-lucide="chart-no-axes-combined"></i>指标分析</button>
+      <button data-view="events" type="button"><i data-lucide="list-tree"></i>事件流</button>
+      <button data-view="databases" type="button"><i data-lucide="database"></i>数据库</button>
+      <button data-view="alerts" type="button"><i data-lucide="siren"></i>告警 <span id="alert-badge"></span></button>
+      <button data-view="changes" type="button"><i data-lucide="git-compare-arrows"></i>变化 <span id="change-badge"></span></button>
+      <button data-view="topology" type="button"><i data-lucide="network"></i>拓扑</button>
+      <button data-view="evidence" type="button"><i data-lucide="brain-circuit"></i>证据分析</button>
+      <button data-view="notifications" type="button"><i data-lucide="send"></i>通知投递 <span id="delivery-badge"></span></button>
+      <div class="nav-divider"><span>配置</span></div>
+      <button data-view="coverage" type="button"><i data-lucide="scan-search"></i>监控覆盖</button>
+      <button data-view="rules" type="button"><i data-lucide="list-checks"></i>告警规则</button>
+      <button data-view="sources" type="button"><i data-lucide="plug-zap"></i>数据接入</button>
     </nav>
     <main>
       <section class="view active" id="view-overview">
@@ -52,7 +55,7 @@
         <div id="nodes-table" class="table-wrap loading"></div>
       </section>
       <section class="view" id="view-metrics">
-        <div class="page-title"><div><h1>指标分析</h1><p>查询自研时序存储中的原生采集与兼容数据，比较节点和序列趋势。</p></div><button id="metric-refresh" type="button">运行查询</button></div>
+        <div class="page-title"><div><h1>指标分析</h1><p>查询自研时序存储中的原生采集与兼容数据，比较节点和序列趋势。</p></div><button id="metric-refresh" class="command-with-icon" type="button"><i data-lucide="play"></i>运行查询</button></div>
         <div id="metric-summary" class="metrics compact loading"></div>
         <form id="metric-query" class="query-bar">
           <label>指标<select id="metric-name" required><option value="">选择指标</option></select></label>
@@ -70,6 +73,9 @@
       <section class="view" id="view-sources">
         <div class="page-title"><div><h1>数据接入</h1><p>统一查看原生 Agent 与兼容协议入口，不需要部署外部采集或存储服务。</p></div></div>
         <div id="source-adapters" class="adapter-grid loading"></div>
+        <div class="section-head"><h2>自动发现建议</h2><div class="section-tools"><span id="recommendation-summary">等待 Agent 原生发现</span><button id="recommendation-download" class="command-with-icon" type="button" disabled><i data-lucide="download"></i>下载应用配置</button></div></div>
+        <div id="recommendation-metrics" class="metrics compact loading"></div>
+        <div id="recommendation-table" class="table-wrap loading"></div>
         <div class="section-head"><h2>Agent 身份</h2><span id="agent-summary"></span></div>
         <div id="agent-table" class="table-wrap loading"></div>
         <div class="section-head"><h2>活跃数据源</h2><span id="source-summary"></span></div>
@@ -80,7 +86,7 @@
         </div>
       </section>
       <section class="view" id="view-events">
-        <div class="page-title"><div><h1>事件流</h1><p>检索 Agent 直接采集的文件日志、系统事件和结构化运行记录。</p></div><button id="event-refresh" type="button">刷新事件</button></div>
+        <div class="page-title"><div><h1>事件流</h1><p>检索 Agent 直接采集的文件日志、系统事件和结构化运行记录。</p></div><button id="event-refresh" class="command-with-icon" type="button"><i data-lucide="refresh-cw"></i>刷新事件</button></div>
         <div id="event-metrics" class="metrics compact loading"></div>
         <form id="event-query" class="event-query">
           <label class="event-search">关键词<input id="event-search" type="search" placeholder="消息、服务或属性"></label>
@@ -105,7 +111,7 @@
         <div id="alerts-table" class="table-wrap loading"></div>
       </section>
       <section class="view" id="view-rules">
-        <div class="page-title"><div><h1>告警规则</h1><p>对任何原生或兼容指标设置节点、来源、标签、阈值和持续时间。</p></div><button id="rule-create" type="button">新建规则</button></div>
+        <div class="page-title"><div><h1>告警规则</h1><p>对任何原生或兼容指标设置节点、来源、标签、阈值和持续时间。</p></div><button id="rule-create" class="command-with-icon" type="button"><i data-lucide="plus"></i>新建规则</button></div>
         <div id="rule-metrics" class="metrics compact loading"></div>
         <div id="rules-table" class="table-wrap loading"></div>
       </section>
@@ -115,11 +121,30 @@
         <div id="changes-table" class="table-wrap loading"></div>
       </section>
       <section class="view" id="view-topology">
-        <div class="page-title"><div><h1>资源拓扑</h1><p>基于 InfraScout 证据聚合部署、监听和依赖关系。</p></div><div class="topology-controls"><select id="topology-view" aria-label="拓扑视角"><option value="all">全部关系</option><option value="deployment">部署拓扑</option><option value="service">服务依赖</option><option value="exposure">网络暴露</option><option value="database">数据库</option><option value="impact">故障影响</option></select><div class="legend"><span><i class="host"></i>主机</span><span><i class="service"></i>服务</span><span><i class="endpoint"></i>端口</span></div></div></div>
+        <div class="page-title"><div><h1>资源拓扑</h1><p>基于可追溯证据查看当前关系、历史快照与结构变化。</p></div><div class="topology-controls"><select id="topology-view" aria-label="拓扑视角"><option value="all">全部关系</option><option value="deployment">部署拓扑</option><option value="service">服务依赖</option><option value="exposure">网络暴露</option><option value="database">数据库</option><option value="impact">故障影响</option></select><button id="topology-capture" class="command-with-icon" type="button"><i data-lucide="camera"></i>保存快照</button></div></div>
         <div id="topology-stats" class="topology-stats"></div>
         <div id="topology" class="topology-wrap loading"></div>
+        <div class="section-head"><h2>历史对比</h2><span>选择两个时点查看新增、移除和改变的节点与关系</span></div>
+        <div class="topology-history-bar"><label>对比前<select id="topology-from"><option value="">选择快照</option></select></label><i data-lucide="arrow-right"></i><label>对比后<select id="topology-to"><option value="">选择快照</option></select></label><button id="topology-compare" class="command-with-icon" type="button"><i data-lucide="git-compare"></i>开始对比</button></div>
+        <div id="topology-diff" class="diff-panel"></div>
+        <div id="topology-snapshots" class="table-wrap"></div>
         <div class="section-head"><h2>关系证据与确认</h2><span>低置信度关系使用虚线显示</span></div>
         <div id="relationship-list" class="relationship-list"></div>
+      </section>
+      <section class="view" id="view-evidence">
+        <div class="page-title"><div><h1>证据分析</h1><p>把指标、事件、变化和拓扑整理为可复核的脱敏证据，再决定是否交给 AI 解释。</p></div><button id="evidence-create" class="command-with-icon" type="button"><i data-lucide="package-plus"></i>生成证据包</button></div>
+        <div class="privacy-band"><div><i data-lucide="shield-check"></i><span><b>本地先整理</b>默认只包含结构化事实、数值摘要和关系证据。</span></div><div><i data-lucide="shield-x"></i><span><b>默认不外发</b>密钥、私钥、环境变量、业务数据和原始日志正文。</span></div></div>
+        <div id="evidence-metrics" class="metrics compact loading"></div>
+        <div class="section-head"><h2>证据包</h2><span>点击记录查看事实、假设、置信度和发送预览</span></div>
+        <div id="evidence-list" class="table-wrap loading"></div>
+      </section>
+      <section class="view" id="view-notifications">
+        <div class="page-title"><div><h1>通知投递</h1><p>查看渠道配置、去重抑制结果、重试进度和最终投递状态。</p></div><button id="delivery-refresh" class="command-with-icon" type="button"><i data-lucide="refresh-cw"></i>刷新队列</button></div>
+        <div id="delivery-metrics" class="metrics compact loading"></div>
+        <div class="section-head"><h2>渠道</h2><span>敏感端点与凭据只从服务端环境变量读取</span></div>
+        <div id="notification-channels" class="channel-strip loading"></div>
+        <div class="section-head"><h2>投递记录</h2><select id="delivery-filter" aria-label="投递状态"><option value="">全部状态</option><option value="pending">等待重试</option><option value="delivered">已送达</option><option value="suppressed">已抑制</option><option value="failed">最终失败</option></select></div>
+        <div id="delivery-list" class="table-wrap loading"></div>
       </section>
       <section class="view" id="view-coverage">
         <div class="page-title"><div><h1>监控覆盖</h1><p>识别主机指标、基础设施清单、漂移和服务探针中的采集空白。</p></div></div>
@@ -185,8 +210,29 @@
       <div class="form-actions"><button data-close type="button" class="quiet">取消</button><button id="rule-submit" type="submit">保存规则</button></div>
     </form>
   </dialog>
+  <dialog id="snapshot-dialog" class="compact-dialog">
+    <form id="snapshot-form">
+      <div class="dialog-head"><div><h2>保存拓扑快照</h2><p>可选关联发布或事故，方便事后按上下文对比。</p></div><button data-close aria-label="关闭" type="button"><i data-lucide="x"></i></button></div>
+      <div class="dialog-fields"><label>发布 ID<input id="snapshot-release" maxlength="128" placeholder="可选"></label><label>事故 ID<input id="snapshot-incident" maxlength="128" placeholder="可选"></label><label class="wide">备注<textarea id="snapshot-note" maxlength="1000" rows="3"></textarea></label></div>
+      <div class="form-actions"><button data-close type="button" class="quiet">取消</button><button type="submit">保存快照</button></div>
+    </form>
+  </dialog>
+  <dialog id="evidence-dialog">
+    <div class="dialog-head"><div><h2 id="evidence-title">证据包</h2><p id="evidence-subtitle"></p></div><button data-close aria-label="关闭" type="button"><i data-lucide="x"></i></button></div>
+    <div id="evidence-detail" class="evidence-detail"></div>
+    <div class="form-actions evidence-actions"><button id="evidence-preview" class="command-with-icon" type="button"><i data-lucide="eye"></i>查看 AI 发送预览</button></div>
+  </dialog>
+  <dialog id="ai-preview-dialog">
+    <div class="dialog-head"><div><h2>AI 发送预览</h2><p id="ai-provider-state"></p></div><button data-close aria-label="关闭" type="button"><i data-lucide="x"></i></button></div>
+    <div id="ai-privacy" class="ai-privacy"></div>
+    <details class="payload-preview"><summary>查看将要发送的完整内容</summary><pre id="ai-payload"></pre></details>
+    <label class="confirm-send"><input id="ai-confirm" type="checkbox">我已检查以上内容，同意发送给当前配置的 AI Provider</label>
+    <div id="ai-result" class="ai-result"></div>
+    <div class="form-actions"><button data-close type="button" class="quiet">取消</button><button id="ai-explain" class="command-with-icon" type="button" disabled><i data-lucide="sparkles"></i>请求分析</button></div>
+  </dialog>
   <div id="toast" role="status" aria-live="polite"></div>
   <script src="/static/suite.js"></script>
+  <script src="/static/vendor/lucide.min.js"></script>
   <script src="/static/app.js"></script>
 </body>
 </html>

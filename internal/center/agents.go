@@ -144,6 +144,10 @@ func (s *Server) revokeAgent(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) authorizeAgent(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if !hasBrowserMutationIntent(r) {
+			writeError(w, http.StatusForbidden, "cross-site mutation rejected")
+			return
+		}
 		if s.token == "" {
 			next(w, r.WithContext(context.WithValue(r.Context(), agentAuthKey{}, agentAuth{Admin: true})))
 			return

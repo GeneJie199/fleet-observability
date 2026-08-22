@@ -50,9 +50,7 @@ func (s *Server) ingestTelemetry(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "evaluate metric rules: "+err.Error())
 		return
 	}
-	if s.webhookURL != "" && len(newAlerts) > 0 {
-		go s.notifyWebhook(newAlerts)
-	}
+	s.notifyAlerts(newAlerts)
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(http.StatusAccepted)
 	_ = json.NewEncoder(w).Encode(map[string]any{"status": "accepted", "duplicate": duplicate, "points": len(batch.Points)})
@@ -137,9 +135,7 @@ func (s *Server) ingestCompatibility(format string) http.HandlerFunc {
 			writeError(w, http.StatusInternalServerError, "evaluate metric rules: "+err.Error())
 			return
 		}
-		if s.webhookURL != "" && len(newAlerts) > 0 {
-			go s.notifyWebhook(newAlerts)
-		}
+		s.notifyAlerts(newAlerts)
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.WriteHeader(http.StatusAccepted)
 		_ = json.NewEncoder(w).Encode(map[string]any{"status": "accepted", "format": format, "duplicate": duplicate, "points": len(points)})

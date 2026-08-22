@@ -45,3 +45,13 @@ jobs:
         run: |
           go build -trimpath -o fleetctl ./cmd/fleetctl
           ./fleetctl version
+          ./fleetctl up --help
+          ./fleetctl doctor --help
+          sh -n scripts/install.sh
+      - name: Verify Windows installer syntax
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path 'scripts/install.ps1'), [ref]$null, [ref]$errors)
+          if ($errors.Count) { $errors | Format-List; exit 1 }

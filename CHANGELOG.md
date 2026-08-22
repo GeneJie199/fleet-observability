@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.0 - 2026-08-23
+
+- Add `fleetctl up` for a loopback Center and self-enrolling local Agent with generated persistent credentials, native discovery, optional InfraScout integration, and automatic console opening.
+- Add stable native port/process discovery and safe monitoring recommendations without collecting command lines, environment values, business rows, or inline credentials.
+- Add immutable topology snapshots, structural diffs, release/incident context, group-scoped history, and append-only relationship review audit.
+- Add persistent multi-channel notification delivery for Webhook, Feishu, WeCom, DingTalk, Slack, Telegram, and SMTP with grouping, deduplication, suppression, deployment windows, bounded retries, and manual replay.
+- Add privacy-scoped evidence packages, explicit AI payload previews, secret redaction, structured assumptions, completeness confidence, and opt-in OpenAI-compatible, Anthropic, Gemini, or custom explanation providers.
+- Add automatic-discovery, delivery, topology-history, and evidence-analysis console workflows with offline Lucide icons and responsive desktop/mobile layouts.
+- Add `fleetctl doctor`, Linux systemd and Windows user installers, complete release archives, cross-site mutation protection, and security regression tests.
+
 ## 0.3.2 - 2026-08-13
 
 - Add first-run, empty-resource-group, and all-Agents-stale recovery panels with direct actions for data ingestion, credentials, group management, and refresh.

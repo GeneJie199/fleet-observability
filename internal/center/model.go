@@ -55,6 +55,76 @@ type Alert struct {
 	Note       string         `json:"note,omitempty"`
 }
 
+type NotificationConfig struct {
+	Channels []NotificationChannel `json:"channels"`
+	Policy   NotificationPolicy    `json:"policy"`
+}
+
+type NotificationChannel struct {
+	ID          string            `json:"id"`
+	Type        string            `json:"type"`
+	Enabled     bool              `json:"enabled"`
+	EndpointEnv string            `json:"endpoint_env,omitempty"`
+	HeadersEnv  map[string]string `json:"headers_env,omitempty"`
+	SMTP        *SMTPChannel      `json:"smtp,omitempty"`
+	Telegram    *TelegramChannel  `json:"telegram,omitempty"`
+}
+
+type SMTPChannel struct {
+	Host        string   `json:"host"`
+	Port        int      `json:"port"`
+	UsernameEnv string   `json:"username_env,omitempty"`
+	PasswordEnv string   `json:"password_env,omitempty"`
+	From        string   `json:"from"`
+	To          []string `json:"to"`
+	TLS         bool     `json:"tls"`
+}
+
+type TelegramChannel struct {
+	TokenEnv string `json:"token_env"`
+	ChatID   string `json:"chat_id"`
+}
+
+type NotificationPolicy struct {
+	DedupeWindowSeconds int                       `json:"dedupe_window_seconds"`
+	MaxQueue            int                       `json:"max_queue"`
+	MaxAttempts         int                       `json:"max_attempts"`
+	InitialRetrySeconds int                       `json:"initial_retry_seconds"`
+	Suppressions        []NotificationSuppression `json:"suppressions,omitempty"`
+	DeploymentWindows   []NotificationWindow      `json:"deployment_windows,omitempty"`
+}
+
+type NotificationSuppression struct {
+	NodeID string `json:"node_id,omitempty"`
+	Kind   string `json:"kind,omitempty"`
+	Until  string `json:"until"`
+	Reason string `json:"reason,omitempty"`
+}
+
+type NotificationWindow struct {
+	NodeID        string `json:"node_id,omitempty"`
+	Start         string `json:"start"`
+	End           string `json:"end"`
+	AllowCritical bool   `json:"allow_critical"`
+	Reason        string `json:"reason,omitempty"`
+}
+
+type NotificationDelivery struct {
+	ID            string   `json:"id"`
+	ChannelID     string   `json:"channel_id"`
+	ChannelType   string   `json:"channel_type"`
+	AlertIDs      []string `json:"alert_ids"`
+	Status        string   `json:"status"`
+	Attempts      int      `json:"attempts"`
+	CreatedAt     string   `json:"created_at"`
+	UpdatedAt     string   `json:"updated_at"`
+	NextAttemptAt string   `json:"next_attempt_at,omitempty"`
+	DeliveredAt   string   `json:"delivered_at,omitempty"`
+	LastError     string   `json:"last_error,omitempty"`
+	SuppressedBy  string   `json:"suppressed_by,omitempty"`
+	Alerts        []Alert  `json:"alerts"`
+}
+
 type MetricRule struct {
 	ID          string            `json:"id"`
 	Name        string            `json:"name"`
@@ -133,6 +203,53 @@ type Topology struct {
 	Edges       []TopologyEdge `json:"edges"`
 }
 
+type TopologySnapshot struct {
+	ID          string   `json:"id"`
+	CapturedAt  string   `json:"captured_at"`
+	Fingerprint string   `json:"fingerprint"`
+	Trigger     string   `json:"trigger"`
+	GroupID     string   `json:"group_id,omitempty"`
+	ReleaseID   string   `json:"release_id,omitempty"`
+	IncidentID  string   `json:"incident_id,omitempty"`
+	Note        string   `json:"note,omitempty"`
+	Topology    Topology `json:"topology"`
+}
+
+type TopologySnapshotSummary struct {
+	ID          string `json:"id"`
+	CapturedAt  string `json:"captured_at"`
+	Fingerprint string `json:"fingerprint"`
+	Trigger     string `json:"trigger"`
+	GroupID     string `json:"group_id,omitempty"`
+	ReleaseID   string `json:"release_id,omitempty"`
+	IncidentID  string `json:"incident_id,omitempty"`
+	Note        string `json:"note,omitempty"`
+	Nodes       int    `json:"nodes"`
+	Edges       int    `json:"edges"`
+}
+
+type TopologyNodeChange struct {
+	Before *TopologyNode `json:"before,omitempty"`
+	After  *TopologyNode `json:"after,omitempty"`
+}
+
+type TopologyEdgeChange struct {
+	Before *TopologyEdge `json:"before,omitempty"`
+	After  *TopologyEdge `json:"after,omitempty"`
+}
+
+type TopologyDiff struct {
+	From         TopologySnapshotSummary `json:"from"`
+	To           TopologySnapshotSummary `json:"to"`
+	AddedNodes   []TopologyNode          `json:"added_nodes"`
+	RemovedNodes []TopologyNode          `json:"removed_nodes"`
+	ChangedNodes []TopologyNodeChange    `json:"changed_nodes"`
+	AddedEdges   []TopologyEdge          `json:"added_edges"`
+	RemovedEdges []TopologyEdge          `json:"removed_edges"`
+	ChangedEdges []TopologyEdgeChange    `json:"changed_edges"`
+	Summary      map[string]int          `json:"summary"`
+}
+
 type ResourceGroup struct {
 	ID          string   `json:"id"`
 	Name        string   `json:"name"`
@@ -148,6 +265,17 @@ type RelationshipReview struct {
 	ReviewedBy   string `json:"reviewed_by,omitempty"`
 	Note         string `json:"note,omitempty"`
 	UpdatedAt    string `json:"updated_at"`
+}
+
+type RelationshipAudit struct {
+	ID             string `json:"id"`
+	RelationshipID string `json:"relationship_id"`
+	Action         string `json:"action"`
+	Previous       string `json:"previous,omitempty"`
+	Current        string `json:"current"`
+	ReviewedBy     string `json:"reviewed_by"`
+	Note           string `json:"note,omitempty"`
+	CreatedAt      string `json:"created_at"`
 }
 
 type CoverageItem struct {
@@ -196,13 +324,18 @@ type inventoryDocument struct {
 	Hostname  string         `json:"hostname"`
 	Summary   map[string]int `json:"summary"`
 	Resources []struct {
-		Type     string         `json:"type"`
-		ID       string         `json:"id"`
-		Host     map[string]any `json:"host"`
-		Process  map[string]any `json:"process"`
-		Endpoint map[string]any `json:"endpoint"`
-		Service  map[string]any `json:"service"`
-		Metadata map[string]any `json:"metadata"`
+		Type       string         `json:"type"`
+		ID         string         `json:"id"`
+		Host       map[string]any `json:"host"`
+		Process    map[string]any `json:"process"`
+		Endpoint   map[string]any `json:"endpoint"`
+		Service    map[string]any `json:"service"`
+		Deployment map[string]any `json:"deployment"`
+		Container  map[string]any `json:"container"`
+		Database   map[string]any `json:"database"`
+		Network    map[string]any `json:"network"`
+		Volume     map[string]any `json:"volume"`
+		Metadata   map[string]any `json:"metadata"`
 	} `json:"resources"`
 	Relationships []struct {
 		Source     string   `json:"source"`
@@ -216,7 +349,22 @@ type inventoryDocument struct {
 		Confidence                     float64
 		Endpoints                      []string
 	} `json:"detected_services"`
-	NginxRoutes []struct{ SourceFile, ServerName, Listen, Location, Upstream string } `json:"nginx_routes"`
+	NginxRoutes     []struct{ SourceFile, ServerName, Listen, Location, Upstream string } `json:"nginx_routes"`
+	Recommendations []DiscoveryRecommendation                                             `json:"recommendations"`
+}
+
+type DiscoveryRecommendation struct {
+	ID             string         `json:"id"`
+	NodeID         string         `json:"node_id,omitempty"`
+	Kind           string         `json:"kind"`
+	Name           string         `json:"name"`
+	Address        string         `json:"address,omitempty"`
+	Status         string         `json:"status"`
+	Reason         string         `json:"reason"`
+	RequiredFields []string       `json:"required_fields,omitempty"`
+	Suggested      map[string]any `json:"suggested,omitempty"`
+	Evidence       []string       `json:"evidence,omitempty"`
+	ObservedAt     string         `json:"observed_at"`
 }
 
 type driftItem struct {

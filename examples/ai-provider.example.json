@@ -1,0 +1,7 @@
+{
+  "type": "openai-compatible",
+  "endpoint_env": "FLEET_AI_ENDPOINT",
+  "api_key_env": "FLEET_AI_API_KEY",
+  "model": "your-model-name",
+  "timeout_seconds": 60
+}

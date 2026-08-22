@@ -68,11 +68,22 @@ jobs:
           CGO_ENABLED: 0
         run: |
           version="${GITHUB_REF_NAME#v}"
-          go build -trimpath -ldflags "-s -w -X main.version=${version}" -o "fleetctl-${GOOS}-${GOARCH}${{ matrix.ext }}" ./cmd/fleetctl
+          package="fleetscope-${version}-${GOOS}-${GOARCH}"
+          mkdir -p "$package"
+          go build -trimpath -ldflags "-s -w -X main.version=${version}" -o "$package/fleetctl${{ matrix.ext }}" ./cmd/fleetctl
+          cp README.md CHANGELOG.md LICENSE SECURITY.md "$package/"
+          cp -R deploy docs examples scripts "$package/"
+          if [ "$GOOS" = windows ]; then
+            7z a -tzip "${package}.zip" "./${package}/*"
+          else
+            tar -czf "${package}.tar.gz" "$package"
+          fi
       - uses: actions/upload-artifact@v7
         with:
-          name: fleetctl-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: fleetctl-*
+          name: fleetscope-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: |
+            fleetscope-*.tar.gz
+            fleetscope-*.zip
 
   publish:
     needs: build
@@ -83,7 +94,7 @@ jobs:
           path: dist
           merge-multiple: true
       - name: Checksums
-        run: cd dist && sha256sum fleetctl-* > checksums.txt
+        run: cd dist && sha256sum fleetscope-* > checksums.txt
       - uses: softprops/action-gh-release@v3
         with:
           files: dist/*

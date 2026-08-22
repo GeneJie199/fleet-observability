@@ -2,6 +2,7 @@
   "use strict";
 
   const $ = (selector) => document.querySelector(selector);
+  const renderIcons = () => window.lucide?.createIcons({ attrs: { "aria-hidden": "true", "stroke-width": 1.8 } });
   const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
   })[char]);
@@ -11,19 +12,45 @@
     expected: "预期", approved: "已批准", temporary: "临时允许",
     unexpected: "待审核", denied: "禁止", covered: "已覆盖", missing: "缺失",
     confirmed: "已确认", rejected: "已否定", unreviewed: "未确认",
+    pending: "等待重试", delivered: "已送达", suppressed: "已抑制", failed: "最终失败",
   };
+  const severityLabels = { critical: "严重", high: "高", warning: "警告", medium: "中", info: "信息", error: "错误", debug: "调试", stale: "失联" };
+  const evidenceText = {
+    "Temporal correlation does not prove causation.": "时间上的相关性并不能单独证明因果关系。",
+    "Missing collectors or stale nodes can reduce evidence completeness.": "采集器缺失或节点失联会降低证据完整度。",
+    "AI output, when requested, is advisory and cannot approve or modify production.": "AI 输出仅供辅助判断，不能批准或修改生产环境。",
+    "API keys, passwords, tokens and authorization headers": "API Key、密码、Token 与鉴权请求头",
+    "private keys and complete environment variables": "私钥与完整环境变量",
+    "database business rows": "数据库业务行数据",
+    "source code and raw inventory documents": "源代码与原始资产清单",
+    "raw log and event message text": "原始日志与事件正文",
+    "deterministic FleetScope rule and state data": "FleetScope 确定性规则与状态数据",
+    "alert evidence present": "包含告警证据", "change evidence present": "包含变化证据", "node metrics present": "包含节点指标",
+    "event correlation present": "包含事件关联", "topology relationships present": "包含拓扑关系",
+    "structured alerts and rule evidence": "结构化告警与规则证据", "change classifications and release links": "变化分类与发布关联",
+    "numeric metric summaries": "数值指标摘要", "sanitized topology relationships": "脱敏后的拓扑关系", "event counts by kind and severity": "按类型和级别汇总的事件数量",
+    "up to 50 redacted warning/error event excerpts": "最多 50 条已脱敏的警告/错误事件摘要",
+  };
+  const launchToken = new URLSearchParams(location.hash.replace(/^#/, "")).get("token");
+  if (launchToken) {
+    sessionStorage.setItem("fleet_token", launchToken);
+    history.replaceState(null, "", `${location.pathname}${location.search}`);
+  }
   const state = {
     view: "overview", nodes: [], allNodes: [], overview: null, alerts: [], changes: [], databases: [],
     token: sessionStorage.getItem("fleet_token") || "",
     selectedAlerts: new Set(), selectedChanges: new Set(), topology: null, coverage: null, groups: [],
     activeGroup: sessionStorage.getItem("fleet_group") || "", topologyView: "all", lastSync: null,
     catalog: [], sources: null, agents: [], metricResult: null, rules: null, eventCatalog: null, eventSources: [], eventResult: null, eventRows: [], eventBefore: 0, eventPaged: false,
+    topologySnapshots: [], topologyDiff: null, notifications: null, deliveries: [], evidencePackages: [], activeEvidence: null, aiPreview: null,
+    recommendations: [],
   };
 
   async function api(path, options = {}) {
     const headers = {
       ...(options.body ? { "Content-Type": "application/json" } : {}),
       ...(state.token ? { Authorization: `Bearer ${state.token}` } : {}),
+      ...(options.method && options.method !== "GET" ? { "X-FleetScope-Request": "console" } : {}),
       ...(options.headers || {}),
     };
     const response = await fetch(path, { cache: "no-store", ...options, headers });
@@ -54,10 +81,32 @@
     const stale = text.match(/^agent has not reported within (\d+) minutes?$/i);
     if (stale) return `Agent 已超过 ${stale[1]} 分钟未上报`;
     if (text === "healthy") return "采集正常";
+    if (text === "memory_percent is critically high") return "内存使用率达到严重阈值";
+    if (text === "disk_percent is critically high") return "磁盘使用率达到严重阈值";
+    if (text === "cpu_percent is high") return "CPU 使用率偏高";
+    if (text === "memory_percent is high") return "内存使用率偏高";
+    if (text === "disk_percent is high") return "磁盘使用率偏高";
+    if (text === "critical infrastructure drift") return "存在严重且未审核的基础设施变化";
+    if (text === "infrastructure drift requires review") return "基础设施变化需要审核";
     return text;
   };
   const status = (value) => `<span class="status ${esc(value)}">${esc(labels[value] || value || "未知")}</span>`;
-  const severity = (value) => `<span class="severity ${esc((value || "info").toLowerCase())}">${esc((value || "info").toUpperCase())}</span>`;
+  const severity = (value) => `<span class="severity ${esc((value || "info").toLowerCase())}">${esc(severityLabels[(value || "info").toLowerCase()] || (value || "info").toUpperCase())}</span>`;
+  const localizeEvidence = (value) => {
+    let text = evidenceText[value] || String(value || "");
+    const replacements = [
+      [/^Topology node added: /, "拓扑节点新增："], [/^Topology node removed: /, "拓扑节点移除："], [/^Topology node changed: /, "拓扑节点变化："],
+      [/^Topology relationship added: /, "拓扑关系新增："], [/^Topology relationship removed: /, "拓扑关系移除："], [/^Topology relationship changed: /, "拓扑关系变化："],
+      [/^(\d+) events observed in the selected window$/, "所选时间窗内共观察到 $1 条事件"], [/^(\d+) nodes and (\d+) relationships are in scope$/, "当前范围包含 $1 个节点和 $2 条关系"],
+      [/^Container is not running: /, "容器状态异常："], [/^Critical infrastructure drift: /, "严重基础设施变化："], [/ check failed: /, " 检查失败："],
+      [/memory_percent is critically high/g, "内存使用率达到严重阈值"], [/agent has not reported within 5 minutes/g, "Agent 已超过 5 分钟未上报"],
+      [/memory_percent ([\d.]+) gte ([\d.]+) for (\d+)s/g, "内存 $1% ≥ $2%（持续 $3 秒）"],
+      [/cpu_percent ([\d.]+) gte ([\d.]+) for (\d+)s/g, "CPU $1% ≥ $2%（持续 $3 秒）"],
+      [/disk_percent ([\d.]+) gte ([\d.]+) for (\d+)s/g, "磁盘 $1% ≥ $2%（持续 $3 秒）"],
+    ];
+    replacements.forEach(([pattern, replacement]) => { text = text.replace(pattern, replacement); });
+    return text;
+  };
   const empty = (message) => `<div class="empty">${esc(message)}</div>`;
   function toast(message, isError = false) {
     const target = $("#toast");
@@ -105,9 +154,10 @@
     }
     const viewKeys = {
       overview: ["overview"], nodes: ["nodes"], metrics: ["catalog"],
-      sources: ["sources", "agents"], events: ["eventCatalog", "eventSources"],
+      sources: ["sources", "agents", "recommendations"], events: ["eventCatalog", "eventSources"],
       databases: ["databases"], alerts: ["alerts"], rules: ["rules", "catalog"],
       changes: ["changes"], coverage: ["coverage"], topology: [],
+      notifications: ["notifications", "deliveries"], evidence: ["evidencePackages"],
     };
     const selectedKeys = new Set(["overview", ...(viewKeys[state.view] || [])]);
     const specs = [
@@ -120,9 +170,13 @@
       ["catalog", scoped("/api/v1/telemetry/catalog"), renderMetricCatalog, "#metric-catalog"],
       ["sources", scoped("/api/v1/telemetry/sources"), renderSources, "#source-table"],
       ["agents", "/api/v1/agents", renderAgents, "#agent-table"],
+      ["recommendations", scoped("/api/v1/recommendations"), renderRecommendations, "#recommendation-table"],
       ["rules", "/api/v1/rules", renderRules, "#rules-table"],
       ["eventCatalog", scoped("/api/v1/events/catalog"), renderEventCatalog, "#event-metrics"],
       ["eventSources", scoped("/api/v1/events/sources"), renderEventFilters, "#events-table"],
+      ["notifications", "/api/v1/notifications", renderNotifications, "#notification-channels"],
+      ["deliveries", "/api/v1/notifications/deliveries", renderNotifications, "#delivery-list"],
+      ["evidencePackages", "/api/v1/evidence/packages", renderEvidencePackages, "#evidence-list"],
     ].filter(([key]) => selectedKeys.has(key));
     const results = await Promise.allSettled(specs.map(([, path]) => api(path)));
     const failures = [];
@@ -154,6 +208,8 @@
       $("#alert-badge").textContent = state.overview.open_alerts || "";
       $("#change-badge").textContent = state.overview.pending_changes || "";
     }
+    const failedDeliveries = state.deliveries.filter((item) => item.status === "failed" || item.status === "pending").length;
+    $("#delivery-badge").textContent = failedDeliveries || "";
     const banner = $("#data-banner");
     if (failures.length) {
       sync.textContent = failures.length === specs.length ? "同步失败" : "部分数据陈旧";
@@ -175,6 +231,7 @@
     if (state.view === "topology") await renderTopology();
     if (state.view === "metrics" && state.catalog.length) await queryMetric();
     if (state.view === "events" && !state.eventPaged) await queryEvents(true);
+    renderIcons();
   }
 
   const errorState = (message) => `<div class="empty error-state"><b>数据暂不可用</b><span>${esc(message)}</span><button type="button" data-retry>重试</button></div>`;
@@ -235,7 +292,7 @@
     $("#overview-time").textContent = `数据生成于 ${date(data.generated_at)}`;
     $("#attention").classList.remove("loading");
     $("#attention").innerHTML = data.needs_attention.length ? nodeTable(data.needs_attention) : empty("当前没有需要立即处理的节点。");
-    const resourceNames = { hosts: "主机", processes: "进程", endpoints: "监听端口", services: "服务", containers: "容器", networks: "网络", volumes: "卷" };
+    const resourceNames = { hosts: "主机", processes: "进程", endpoints: "监听端口", services: "服务", deployments: "部署", databases: "数据库", containers: "容器", networks: "网络", volumes: "卷" };
     $("#resource-totals").innerHTML = Object.entries(data.resource_totals || {}).map(([key, value]) => `<div class="resource-item"><b>${fmt(value)}</b><span>${esc(resourceNames[key] || key)}</span></div>`).join("") || empty("尚无资源数据");
   }
 
@@ -382,6 +439,56 @@
       return `<tr><td class="primary">${esc(source.node_id)}</td><td><span class="source-kind">${esc(source.source)}</span></td><td>${status(health)}</td><td>${fmt(source.series)}</td><td>${source.last_sequence ? fmt(source.last_sequence) : "-"}</td><td>${date(source.last_seen_at)}</td></tr>`;
     }).join("")}</tbody></table>` : empty("当前资源组还没有收到遥测数据。");
     $("#source-endpoints").innerHTML = adapters.map((adapter) => `<div><code>POST ${esc(adapter.path || "-")}</code><span>${adapter.id === "native" ? "Content-Type: application/json" : adapter.id === "otlp" ? "OTLP/HTTP JSON · X-Node-ID" : `${esc(adapter.format || "text")} · X-Node-ID`}</span></div>`).join("");
+  }
+
+  function renderRecommendations() {
+    const rows = state.recommendations || [];
+    const target = $("#recommendation-table");
+    const metrics = $("#recommendation-metrics");
+    if (!target || !metrics) return;
+    const counts = rows.reduce((all, item) => ({ ...all, [item.status]: (all[item.status] || 0) + 1 }), {});
+    const applicationKinds = new Set(["nginx", "redis", "postgres", "mysql", "docker"]);
+    $("#recommendation-download").disabled = !rows.some((item) => item.status !== "monitored" && item.suggested && (item.suggested.match || applicationKinds.has(item.kind)));
+    $("#recommendation-summary").textContent = rows.length ? `${rows.length} 个目标来自端口、进程与本机服务证据` : "尚未发现可接入目标";
+    metrics.classList.remove("loading");
+    metrics.innerHTML = [
+      [rows.length, "已发现", "Agent 只读扫描"],
+      [counts.ready || 0, "可直接配置", "不需要额外凭据"],
+      [counts["needs-credentials"] || 0, "需要凭据", "仅接受环境变量引用"],
+      [counts["needs-setup"] || 0, "需要准备", "开放只读状态端点"],
+      [counts.monitored || 0, "已经监控", "已匹配活跃采集器"],
+    ].map(([value, name, note]) => `<div class="metric"><b>${fmt(value)}</b><span>${esc(name)}</span><small>${esc(note)}</small></div>`).join("");
+    const statusNames = { ready: "可配置", "needs-credentials": "需要凭据", "needs-setup": "需要准备", monitored: "已经监控" };
+    target.classList.remove("loading");
+    target.innerHTML = rows.length ? `<table><thead><tr><th>状态</th><th>发现目标</th><th>节点 / 地址</th><th>发现依据</th><th>下一步</th><th>配置</th></tr></thead><tbody>${rows.map((item) => {
+      const required = (item.required_fields || []).length ? `需要：${item.required_fields.join("、")}` : item.status === "monitored" ? "采集已生效" : "可使用默认只读方式";
+      return `<tr><td><span class="status ${esc(item.status)}">${esc(statusNames[item.status] || item.status)}</span></td><td><span class="primary">${esc(item.name)}</span><span class="secondary">${esc(item.kind)}</span></td><td><span class="primary">${esc(item.node_id)}</span><span class="secondary mono">${esc(item.address || "本机")}</span></td><td>${esc(item.reason)}<span class="secondary">${esc((item.evidence || []).join(" · "))}</span></td><td>${esc(required)}</td><td>${item.suggested && item.status !== "monitored" ? `<button type="button" data-rec-copy="${esc(item.id)}">复制安全配置</button>` : "-"}</td></tr>`;
+    }).join("")}</tbody></table>` : empty("Agent 会自动识别常见数据库、缓存、Web 服务和 Docker；没有目标时不需要手工维护空配置。");
+  }
+
+  function downloadRecommendedApplications() {
+    const config = { max_concurrency: 4, nginx: [], redis: [], databases: [], processes: [], docker: [] };
+    for (const item of state.recommendations || []) {
+      if (item.status === "monitored" || !item.suggested) continue;
+      const target = { ...item.suggested };
+      if (target.match) config.processes.push(target);
+      else if (item.kind === "nginx") config.nginx.push({ ...target, timeout_seconds: 5 });
+      else if (item.kind === "redis") config.redis.push({ ...target, timeout_seconds: 5 });
+      else if (item.kind === "postgres" || item.kind === "mysql") config.databases.push({ ...target, timeout_seconds: 5 });
+      else if (item.kind === "docker") config.docker.push({ ...target, timeout_seconds: 10 });
+    }
+    Object.keys(config).forEach((key) => { if (Array.isArray(config[key]) && !config[key].length) delete config[key]; });
+    if (Object.keys(config).length === 1) return;
+    const blob = new Blob([`${JSON.stringify(config, null, 2)}\n`], { type: "application/json" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "applications.discovered.json";
+    document.body.appendChild(link);
+    link.click();
+    const objectURL = link.href;
+    link.remove();
+    URL.revokeObjectURL(objectURL);
+    toast("应用采集配置已生成；凭据值请通过文件中的环境变量名提供");
   }
 
   function renderAgents() {
@@ -558,7 +665,7 @@
     target.innerHTML = rows.length ? `<table><thead><tr><th><span class="sr-only">选择</span></th><th>级别</th><th>告警与证据</th><th>节点</th><th>状态与处理</th><th>更新时间</th><th>操作</th></tr></thead><tbody>${rows.map((alert) => {
       const evidence = alert.evidence || {}, metric = evidence.metric || "";
       const evidenceRows = Object.entries(evidence).filter(([key]) => key !== "metric").map(([key, value]) => `<dt>${esc(key)}</dt><dd>${esc(typeof value === "object" ? JSON.stringify(value) : value)}</dd>`).join("");
-      return `<tr class="alert-row severity-${esc(alert.severity)}"><td><input class="row-check" type="checkbox" data-alert-select="${esc(alert.id)}" aria-label="选择 ${esc(alert.title)}" ${state.selectedAlerts.has(alert.id) ? "checked" : ""}></td><td>${severity(alert.severity)}</td><td><span class="primary">${esc(alert.title)}</span><span class="secondary">${esc(alert.detail)}</span>${alert.value !== undefined || evidenceRows ? `<details class="alert-evidence" data-alert-evidence="${esc(alert.id)}"><summary>判断依据</summary><div class="alert-threshold"><b>${fmt(alert.value)}</b><span>当前值</span><b>${fmt(alert.threshold)}</b><span>阈值</span></div>${evidenceRows ? `<dl>${evidenceRows}</dl>` : ""}</details>` : ""}</td><td><button class="entity-link" data-node="${esc(alert.node_id)}" type="button">${esc(alert.node_id)}</button></td><td>${status(alert.status)}${alert.assignee ? `<span class="secondary">${esc(alert.assignee)}${alert.note ? ` · ${esc(alert.note)}` : ""}</span>` : ""}</td><td>${date(alert.updated_at || alert.observed_at)}</td><td><div class="row-actions">${metric ? `<button data-alert-metric="${esc(metric)}" data-alert-node="${esc(alert.node_id)}" type="button">查指标</button>` : ""}${alert.status === "open" ? `<button data-alert="${esc(alert.id)}" data-status="acknowledged" type="button">确认</button>` : ""}${alert.status !== "resolved" ? `<button data-alert="${esc(alert.id)}" data-status="resolved" type="button">解决</button>` : `<button data-alert="${esc(alert.id)}" data-status="open" type="button">重新打开</button>`}</div></td></tr>`;
+      return `<tr class="alert-row severity-${esc(alert.severity)}"><td><input class="row-check" type="checkbox" data-alert-select="${esc(alert.id)}" aria-label="选择 ${esc(alert.title)}" ${state.selectedAlerts.has(alert.id) ? "checked" : ""}></td><td>${severity(alert.severity)}</td><td><span class="primary">${esc(alert.title)}</span><span class="secondary">${esc(alert.detail)}</span>${alert.value !== undefined || evidenceRows ? `<details class="alert-evidence" data-alert-evidence="${esc(alert.id)}"><summary>判断依据</summary><div class="alert-threshold"><b>${fmt(alert.value)}</b><span>当前值</span><b>${fmt(alert.threshold)}</b><span>阈值</span></div>${evidenceRows ? `<dl>${evidenceRows}</dl>` : ""}</details>` : ""}</td><td><button class="entity-link" data-node="${esc(alert.node_id)}" type="button">${esc(alert.node_id)}</button></td><td>${status(alert.status)}${alert.assignee ? `<span class="secondary">${esc(alert.assignee)}${alert.note ? ` · ${esc(alert.note)}` : ""}</span>` : ""}</td><td>${date(alert.updated_at || alert.observed_at)}</td><td><div class="row-actions"><button data-alert-package="${esc(alert.id)}" data-node-id="${esc(alert.node_id)}" type="button">证据包</button>${metric ? `<button data-alert-metric="${esc(metric)}" data-alert-node="${esc(alert.node_id)}" type="button">查指标</button>` : ""}${alert.status === "open" ? `<button data-alert="${esc(alert.id)}" data-status="acknowledged" type="button">确认</button>` : ""}${alert.status !== "resolved" ? `<button data-alert="${esc(alert.id)}" data-status="resolved" type="button">解决</button>` : `<button data-alert="${esc(alert.id)}" data-status="open" type="button">重新打开</button>`}</div></td></tr>`;
     }).join("")}</tbody></table>` : empty("当前筛选条件下没有告警。");
     target.querySelectorAll("details[data-alert-evidence]").forEach((details) => { details.open = openEvidence.has(details.dataset.alertEvidence); });
     updateBulkBar();
@@ -586,6 +693,112 @@
     $("#change-bulk").querySelector("span").textContent = count ? `已选择 ${count} 条变化` : "选择变化后可批量审核";
     $("#bulk-change-expected").disabled = count === 0;
     $("#bulk-change-approved").disabled = count === 0;
+  }
+
+  function renderNotifications() {
+    const channelsTarget = $("#notification-channels");
+    const deliveriesTarget = $("#delivery-list");
+    const metricTarget = $("#delivery-metrics");
+    if (!channelsTarget || !deliveriesTarget || !metricTarget) return;
+    const channels = state.notifications?.channels || [];
+    const deliveries = state.deliveries || [];
+    const counts = deliveries.reduce((all, item) => ({ ...all, [item.status]: (all[item.status] || 0) + 1 }), {});
+    metricTarget.classList.remove("loading");
+    metricTarget.innerHTML = [
+      [channels.filter((item) => item.enabled && item.configured).length, "可用渠道", "已从环境变量加载"],
+      [counts.pending || 0, "等待重试", "指数退避自动恢复"],
+      [counts.delivered || 0, "已送达", "持久化投递记录"],
+      [counts.suppressed || 0, "已抑制", "静默与发布窗口"],
+      [counts.failed || 0, "最终失败", "可人工重新入队"],
+    ].map(([value, name, note]) => `<div class="metric"><b>${fmt(value)}</b><span>${esc(name)}</span><small>${esc(note)}</small></div>`).join("");
+    channelsTarget.classList.remove("loading");
+    channelsTarget.innerHTML = channels.length ? channels.map((channel) => `<article class="channel ${channel.configured ? "ready" : "missing"}"><i data-lucide="${channel.type === "smtp" ? "mail" : "message-square-share"}"></i><div><b>${esc(channel.id)}</b><span>${esc(channel.type)}</span></div>${status(channel.enabled && channel.configured ? "healthy" : "missing")}</article>`).join("") : empty("尚未配置通知渠道。告警仍会在本地完整记录。");
+    const filter = $("#delivery-filter").value;
+    const rows = deliveries.filter((item) => !filter || item.status === filter);
+    deliveriesTarget.classList.remove("loading");
+    deliveriesTarget.innerHTML = rows.length ? `<table><thead><tr><th>状态</th><th>渠道</th><th>告警</th><th>尝试</th><th>时间</th><th>结果</th><th>操作</th></tr></thead><tbody>${rows.map((item) => `<tr><td>${status(item.status)}</td><td><span class="primary">${esc(item.channel_id)}</span><span class="secondary">${esc(item.channel_type)}</span></td><td>${fmt(item.alert_ids?.length || 0)} 条<span class="secondary mono">${esc((item.alert_ids || []).slice(0, 2).join("、"))}</span></td><td>${fmt(item.attempts)}</td><td>${date(item.delivered_at || item.next_attempt_at || item.updated_at)}</td><td>${item.suppressed_by ? `<span class="secondary">${esc(item.suppressed_by)}</span>` : item.last_error ? `<span class="delivery-error">${esc(item.last_error)}</span>` : "-"}</td><td>${item.status === "failed" || item.status === "suppressed" ? `<button type="button" data-delivery-retry="${esc(item.id)}">重新投递</button>` : "-"}</td></tr>`).join("")}</tbody></table>` : empty("当前筛选条件下没有投递记录。");
+    renderIcons();
+  }
+
+  function renderEvidencePackages() {
+    const rows = state.evidencePackages || [];
+    const metricTarget = $("#evidence-metrics");
+    const listTarget = $("#evidence-list");
+    if (!metricTarget || !listTarget) return;
+    const latest = rows[0];
+    metricTarget.classList.remove("loading");
+    metricTarget.innerHTML = [
+      [rows.length, "证据包", "本地持久化"],
+      [latest?.facts || 0, "最近事实", latest ? date(latest.created_at) : "尚未生成"],
+      [latest ? `${fmt((latest.confidence || 0) * 100)}%` : "-", "证据完整度", "不是根因确定度"],
+    ].map(([value, name, note]) => `<div class="metric"><b>${esc(value)}</b><span>${esc(name)}</span><small>${esc(note)}</small></div>`).join("");
+    listTarget.classList.remove("loading");
+    listTarget.innerHTML = rows.length ? `<table><thead><tr><th>创建时间</th><th>范围</th><th>事实构成</th><th>置信度</th><th>创建人</th><th></th></tr></thead><tbody>${rows.map((item) => `<tr><td>${date(item.created_at)}</td><td><span class="primary">${esc(item.incident_id || item.release_id || item.group_id || "当前资源范围")}</span><span class="secondary">${item.incident_id ? "事故" : item.release_id ? "发布" : item.group_id ? "资源组" : "全部节点"}</span></td><td>${fmt(item.alerts)} 告警 · ${fmt(item.changes)} 变化 · ${fmt(item.nodes)} 节点</td><td><span class="confidence"><i style="--confidence:${Number(item.confidence || 0) * 100}%"></i>${fmt((item.confidence || 0) * 100)}%</span></td><td>${esc(item.created_by)}</td><td><button type="button" data-evidence-open="${esc(item.id)}">查看证据</button></td></tr>`).join("")}</tbody></table>` : empty("尚未生成证据包。出现告警或变化后，可一键整理为脱敏事实集合。");
+  }
+
+  async function createEvidencePackage(scope = {}) {
+    try {
+      const body = { created_by: "console-operator", lookback_minutes: 60, group_id: state.activeGroup || "", ...scope };
+      const pack = await api("/api/v1/evidence/packages", { method: "POST", body: JSON.stringify(body) });
+      toast("证据包已在本地生成");
+      state.evidencePackages = await api("/api/v1/evidence/packages");
+      renderEvidencePackages();
+      await openEvidencePackage(pack.id);
+    } catch (error) {
+      if (error.status === 401) $("#token-dialog").showModal();
+      toast(error.message, true);
+    }
+  }
+
+  async function openEvidencePackage(id) {
+    const dialog = $("#evidence-dialog");
+    dialog.showModal();
+    $("#evidence-title").textContent = "正在读取证据包";
+    $("#evidence-detail").innerHTML = empty("正在加载");
+    try {
+      const [pack, explanations] = await Promise.all([api(`/api/v1/evidence/packages/${encodeURIComponent(id)}`), api(`/api/v1/evidence/packages/${encodeURIComponent(id)}/explanations`)]);
+      state.activeEvidence = pack;
+      $("#evidence-title").textContent = pack.incident_id ? `事故 ${pack.incident_id}` : pack.release_id ? `发布 ${pack.release_id}` : "运行证据包";
+      $("#evidence-subtitle").textContent = `${date(pack.created_at)} · ${pack.created_by} · ${pack.id}`;
+      const facts = pack.facts || [];
+      const confidence = Number(pack.confidence?.score || 0);
+      $("#evidence-detail").innerHTML = `<div class="evidence-summary"><div class="confidence-ring" style="--confidence:${confidence * 360}deg"><b>${fmt(confidence * 100)}%</b><span>证据完整度</span></div><div><b>${facts.length} 条确定性事实</b><p>${esc((pack.confidence?.basis || []).map(localizeEvidence).join(" · "))}</p></div><div><b>${pack.topology?.nodes?.length || 0} 个拓扑节点</b><p>${pack.topology?.edges?.length || 0} 条关系参与关联</p></div></div><div class="evidence-columns"><section><h3>事实</h3>${facts.length ? facts.map((fact) => `<article class="evidence-fact"><span>${severity(fact.severity || "info")}${esc({ alert: "告警", change: "变化", node_health: "节点健康", event_summary: "事件汇总", topology: "拓扑" }[fact.kind] || fact.kind)}</span><b>${esc(localizeEvidence(fact.summary))}</b><small>${esc(fact.source_id || "聚合事实")} · ${date(fact.observed_at)}</small></article>`).join("") : empty("当前范围没有异常事实")}</section><section><h3>边界与假设</h3><ul>${(pack.assumptions || []).map((item) => `<li>${esc(localizeEvidence(item))}</li>`).join("")}</ul><h3>不会发送</h3><ul>${(pack.privacy?.excluded || []).map((item) => `<li>${esc(localizeEvidence(item))}</li>`).join("")}</ul></section></div>${explanations.length ? `<div class="section-head"><h3>已有 AI 分析</h3><span>${explanations.length} 次</span></div>${explanations.map((item) => `<article class="analysis-record"><div><b>${esc(item.provider)} · ${esc(item.model)}</b><span>${date(item.created_at)}</span></div><pre>${esc(item.analysis)}</pre></article>`).join("")}` : ""}`;
+      $("#evidence-preview").disabled = false;
+      renderIcons();
+    } catch (error) {
+      $("#evidence-detail").innerHTML = errorState(error.message);
+      $("#evidence-preview").disabled = true;
+    }
+  }
+
+  async function openAIPreview() {
+    if (!state.activeEvidence) return;
+    try {
+      const preview = await api(`/api/v1/evidence/packages/${encodeURIComponent(state.activeEvidence.id)}/ai-preview`);
+      state.aiPreview = preview;
+      $("#ai-provider-state").textContent = preview.provider_configured ? `${preview.provider_type} · ${preview.model}` : "尚未配置 AI Provider；仍可检查和导出证据包";
+      $("#ai-privacy").innerHTML = `<section><h3><i data-lucide="check-circle-2"></i>将要发送</h3><ul>${preview.privacy.included.map((item) => `<li>${esc(localizeEvidence(item))}</li>`).join("")}</ul></section><section><h3><i data-lucide="ban"></i>不会发送</h3><ul>${preview.privacy.excluded.map((item) => `<li>${esc(localizeEvidence(item))}</li>`).join("")}</ul></section>`;
+      $("#ai-payload").textContent = preview.payload;
+      $("#ai-confirm").checked = false;
+      $("#ai-confirm").disabled = !preview.provider_configured;
+      $("#ai-explain").disabled = true;
+      $("#ai-result").innerHTML = "";
+      $("#ai-preview-dialog").showModal();
+      renderIcons();
+    } catch (error) { toast(error.message, true); }
+  }
+
+  async function requestAIExplanation() {
+    if (!state.aiPreview || !$("#ai-confirm").checked) return;
+    const button = $("#ai-explain");
+    button.disabled = true;
+    button.textContent = "正在分析";
+    try {
+      const result = await api(`/api/v1/evidence/packages/${encodeURIComponent(state.aiPreview.package_id)}/explain`, { method: "POST", body: JSON.stringify({ confirmed: true, preview_hash: state.aiPreview.preview_hash }) });
+      $("#ai-result").innerHTML = `<div class="analysis-record"><div><b>${esc(result.provider)} · ${esc(result.model)}</b><span>${date(result.created_at)}</span></div><pre>${esc(result.analysis)}</pre><p>置信度 ${fmt((result.confidence?.score || 0) * 100)}% · 假设与证据已分开保存</p></div>`;
+      toast("AI 分析已保存到证据包旁边");
+    } catch (error) { $("#ai-result").innerHTML = errorState(error.message); }
+    finally { button.innerHTML = '<i data-lucide="sparkles"></i>再次分析'; button.disabled = false; renderIcons(); }
   }
 
   function sparkline(history, key, title) {
@@ -679,18 +892,23 @@
     const target = $("#topology");
     target.classList.add("loading");
     try {
-      const topology = await api(scoped("/api/v1/topology", { view: state.topologyView }));
+      const [topology, snapshots] = await Promise.all([
+        api(scoped("/api/v1/topology", { view: state.topologyView })),
+        api(scoped("/api/v1/topology/snapshots")),
+      ]);
       state.topology = topology;
+      state.topologySnapshots = snapshots;
       target.classList.remove("loading");
       const typeCounts = topology.nodes.reduce((counts, node) => ({ ...counts, [node.type]: (counts[node.type] || 0) + 1 }), {});
       const reviewed = topology.edges.filter((edge) => edge.confirmation !== "unreviewed").length;
       $("#topology-stats").innerHTML = `<span>${topology.nodes.length} 个资源</span><span>${topology.edges.length} 条关系</span><span>${reviewed}/${topology.edges.length} 已审核</span>${Object.entries(typeCounts).map(([type, count]) => `<span>${esc(type)} ${count}</span>`).join("")}<em>${date(topology.generated_at)}</em>`;
+      renderTopologyHistory();
       renderRelationships(topology);
       if (!topology.nodes.length) { target.innerHTML = empty("当前资源组或拓扑视角没有可显示的数据。"); return; }
       const order = ["host", "service", "process", "route", "endpoint"];
       const grouped = topology.nodes.reduce((groups, node) => { (groups[node.type] ||= []).push(node); return groups; }, {});
       const types = Object.keys(grouped).sort((a, b) => (order.indexOf(a) < 0 ? 99 : order.indexOf(a)) - (order.indexOf(b) < 0 ? 99 : order.indexOf(b)));
-      const cellWidth = 220, cellHeight = 78, boxWidth = 174, boxHeight = 52;
+      const cellWidth = 175, cellHeight = 78, boxWidth = 140, boxHeight = 52;
       const width = Math.max(720, types.length * cellWidth + 40), height = Math.max(360, Math.max(...types.map((type) => grouped[type].length)) * cellHeight + 70);
       const positions = {};
       types.forEach((type, column) => grouped[type].forEach((node, row) => { positions[node.id] = { x: 25 + column * cellWidth, y: 50 + row * cellHeight }; }));
@@ -701,13 +919,60 @@
       }).join("");
       const nodes = topology.nodes.map((node) => {
         const point = positions[node.id], className = ["host", "service", "endpoint"].includes(node.type) ? node.type : "resource";
-        return `<g class="topology-node ${className}" transform="translate(${point.x} ${point.y})"><rect width="${boxWidth}" height="${boxHeight}" rx="4"></rect><text x="12" y="21" class="node-label">${esc(node.label).slice(0, 24)}</text><text x="12" y="39" class="node-meta">${esc(node.type)} · ${esc(node.node_id)}</text><title>${esc(node.id)}</title></g>`;
+        return `<g class="topology-node ${className}" transform="translate(${point.x} ${point.y})"><rect width="${boxWidth}" height="${boxHeight}" rx="4"></rect><text x="12" y="21" class="node-label">${esc(node.label).slice(0, 17)}</text><text x="12" y="39" class="node-meta">${esc(node.type)} · ${esc(node.node_id)}</text><title>${esc(node.id)}</title></g>`;
       }).join("");
       const headings = types.map((type, index) => `<text x="${25 + index * cellWidth}" y="25" class="layer-label">${esc(type.toUpperCase())} · ${grouped[type].length}</text>`).join("");
       const mobileList = types.map((type) => `<section><h3>${esc(type)} <span>${grouped[type].length}</span></h3>${grouped[type].map((node) => `<div><b>${esc(node.label)}</b><small>${esc(node.node_id)}${node.health ? ` · ${esc(labels[node.health] || node.health)}` : ""}</small></div>`).join("")}</section>`).join("");
       target.innerHTML = `<svg class="topology-svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img" aria-label="分层资源拓扑"><defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z"></path></marker></defs>${headings}${edges}${nodes}</svg><div class="topology-list">${mobileList}</div>`;
+      renderIcons();
     } catch (error) {
       target.classList.remove("loading"); target.innerHTML = errorState(error.message); $("#relationship-list").innerHTML = empty("关系证据暂不可用。");
+    }
+  }
+
+  function renderTopologyHistory() {
+    const snapshots = state.topologySnapshots || [];
+    const from = $("#topology-from"), to = $("#topology-to");
+    const previousFrom = from.value, previousTo = to.value;
+    const options = '<option value="">选择快照</option>' + snapshots.map((item) => `<option value="${esc(item.id)}">${date(item.captured_at)} · ${item.nodes} 节点 / ${item.edges} 关系${item.release_id ? ` · ${esc(item.release_id)}` : ""}</option>`).join("");
+    from.innerHTML = options;
+    to.innerHTML = options;
+    from.value = snapshots.some((item) => item.id === previousFrom) ? previousFrom : snapshots[1]?.id || "";
+    to.value = snapshots.some((item) => item.id === previousTo) ? previousTo : snapshots[0]?.id || "";
+    $("#topology-compare").disabled = !from.value || !to.value || from.value === to.value;
+    $("#topology-snapshots").innerHTML = snapshots.length ? `<table><thead><tr><th>捕获时间</th><th>触发方式</th><th>规模</th><th>上下文</th><th>备注</th></tr></thead><tbody>${snapshots.slice(0, 20).map((item) => `<tr><td>${date(item.captured_at)}</td><td>${item.trigger === "manual" ? "人工保存" : "结构变化"}</td><td>${fmt(item.nodes)} 节点 · ${fmt(item.edges)} 关系</td><td>${esc(item.release_id || item.incident_id || item.group_id || "-")}</td><td>${esc(item.note || "-")}</td></tr>`).join("")}</tbody></table>` : empty("第一台 Agent 上报后会自动保存首个拓扑快照。");
+    if (!state.topologyDiff) $("#topology-diff").innerHTML = snapshots.length > 1 ? '<div class="empty">选择两个时点开始对比。</div>' : "";
+  }
+
+  async function compareTopologySnapshots() {
+    const from = $("#topology-from").value, to = $("#topology-to").value;
+    if (!from || !to || from === to) return;
+    const target = $("#topology-diff");
+    target.classList.add("loading");
+    try {
+      const diff = await api(`/api/v1/topology/diff?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+      state.topologyDiff = diff;
+      const categories = [["新增节点", diff.added_nodes, "plus"], ["移除节点", diff.removed_nodes, "minus"], ["变化节点", diff.changed_nodes, "refresh-cw"], ["新增关系", diff.added_edges, "git-branch-plus"], ["移除关系", diff.removed_edges, "git-branch-minus"], ["变化关系", diff.changed_edges, "git-compare"]];
+      target.innerHTML = `<div class="diff-head"><div><b>${date(diff.from.captured_at)}</b><span>对比前</span></div><i data-lucide="arrow-right"></i><div><b>${date(diff.to.captured_at)}</b><span>对比后</span></div></div><div class="diff-categories">${categories.map(([name, items, icon]) => `<article class="${items.length ? "changed" : ""}"><i data-lucide="${icon}"></i><b>${items.length}</b><span>${name}</span>${items.length ? `<details><summary>查看明细</summary><ul>${items.slice(0, 30).map((item) => { const value = item.after || item.before || item; return `<li>${esc(value.label || `${value.source || "?"} → ${value.target || "?"}`)}</li>`; }).join("")}</ul></details>` : ""}</article>`).join("")}</div>`;
+      renderIcons();
+    } catch (error) {
+      target.innerHTML = errorState(error.message);
+    } finally {
+      target.classList.remove("loading");
+    }
+  }
+
+  async function captureTopologySnapshot(event) {
+    event.preventDefault();
+    const body = { group_id: state.activeGroup || "", release_id: $("#snapshot-release").value.trim(), incident_id: $("#snapshot-incident").value.trim(), note: $("#snapshot-note").value.trim() };
+    try {
+      await api("/api/v1/topology/snapshots", { method: "POST", body: JSON.stringify(body) });
+      $("#snapshot-dialog").close();
+      toast("拓扑快照已保存");
+      await renderTopology();
+    } catch (error) {
+      if (error.status === 401) $("#token-dialog").showModal();
+      toast(error.message, true);
     }
   }
 
@@ -802,11 +1067,34 @@
       }
       return;
     }
+    const copyRecommendation = event.target.closest("[data-rec-copy]");
+    if (copyRecommendation) {
+      const recommendation = state.recommendations.find((item) => item.id === copyRecommendation.dataset.recCopy);
+      if (!recommendation?.suggested) return;
+      try {
+        await navigator.clipboard.writeText(JSON.stringify(recommendation.suggested, null, 2));
+        toast("安全配置已复制；凭据值请通过对应环境变量提供");
+      } catch (_) { toast("浏览器未允许复制，请使用 HTTPS 或本机地址", true); }
+      return;
+    }
     const relationshipButton = event.target.closest("[data-relationship]");
     if (relationshipButton) {
       openAction("relationship", relationshipButton.dataset.relationship, relationshipButton.dataset.confirmation, relationshipButton.dataset.context);
       return;
     }
+    const deliveryRetry = event.target.closest("[data-delivery-retry]");
+    if (deliveryRetry) {
+      try {
+        await api(`/api/v1/notifications/deliveries/${encodeURIComponent(deliveryRetry.dataset.deliveryRetry)}/retry`, { method: "POST", body: "{}" });
+        toast("投递任务已重新进入队列");
+        await refresh();
+      } catch (error) { if (error.status === 401) $("#token-dialog").showModal(); toast(error.message, true); }
+      return;
+    }
+    const evidenceOpen = event.target.closest("[data-evidence-open]");
+    if (evidenceOpen) { await openEvidencePackage(evidenceOpen.dataset.evidenceOpen); return; }
+    const evidenceAlert = event.target.closest("[data-alert-package]");
+    if (evidenceAlert) { await createEvidencePackage({ alert_ids: [evidenceAlert.dataset.alertPackage], node_ids: [evidenceAlert.dataset.nodeId] }); return; }
     const editGroup = event.target.closest("[data-edit-group]");
     if (editGroup) {
       resetGroupForm(state.groups.find((group) => group.id === editGroup.dataset.editGroup));
@@ -836,7 +1124,8 @@
       const alert = state.alerts.find((item) => item.id === alertButton.dataset.alert);
       openAction("alert", alertButton.dataset.alert, alertButton.dataset.status, alert ? `${alert.title} · ${alert.node_id}` : alertButton.dataset.alert);
     }
-    if (event.target.matches("[data-close]")) event.target.closest("dialog").close();
+    const closeButton = event.target.closest("[data-close]");
+    if (closeButton) closeButton.closest("dialog").close();
   });
   document.addEventListener("change", (event) => {
     if (event.target.matches("select[data-change]") && event.target.value) {
@@ -856,6 +1145,11 @@
       state.topologyView = event.target.value;
       renderTopology();
     }
+    if (event.target.id === "topology-from" || event.target.id === "topology-to") {
+      $("#topology-compare").disabled = !$("#topology-from").value || !$("#topology-to").value || $("#topology-from").value === $("#topology-to").value;
+    }
+    if (event.target.id === "delivery-filter") renderNotifications();
+    if (event.target.id === "ai-confirm") $("#ai-explain").disabled = !event.target.checked || !state.aiPreview?.provider_configured;
     if (event.target.matches("[data-alert-select]")) {
       if (event.target.checked) state.selectedAlerts.add(event.target.dataset.alertSelect);
       else state.selectedAlerts.delete(event.target.dataset.alertSelect);
@@ -892,6 +1186,14 @@
   $("#alert-filter").addEventListener("change", renderAlerts);
   $("#alert-severity").addEventListener("change", renderAlerts);
   $("#change-filter").addEventListener("change", renderChanges);
+  $("#delivery-refresh").addEventListener("click", refresh);
+  $("#recommendation-download").addEventListener("click", downloadRecommendedApplications);
+  $("#evidence-create").addEventListener("click", () => createEvidencePackage());
+  $("#evidence-preview").addEventListener("click", openAIPreview);
+  $("#ai-explain").addEventListener("click", requestAIExplanation);
+  $("#topology-capture").addEventListener("click", () => { $("#snapshot-form").reset(); $("#snapshot-dialog").showModal(); renderIcons(); });
+  $("#topology-compare").addEventListener("click", compareTopologySnapshots);
+  $("#snapshot-form").addEventListener("submit", captureTopologySnapshot);
   $("#bulk-ack").addEventListener("click", () => openAction("alert", [...state.selectedAlerts], "acknowledged", `${state.selectedAlerts.size} 条已选择告警`));
   $("#bulk-change-expected").addEventListener("click", () => openAction("change", [...state.selectedChanges], "expected", `${state.selectedChanges.size} 条已选择变化`));
   $("#bulk-change-approved").addEventListener("click", () => openAction("change", [...state.selectedChanges], "approved", `${state.selectedChanges.size} 条已选择变化`));
@@ -930,6 +1232,7 @@
   $("#group-reset").addEventListener("click", () => resetGroupForm());
   $("#token-button").addEventListener("click", () => { $("#token-input").value = state.token; $("#token-dialog").showModal(); });
   $("#save-token").addEventListener("click", () => { state.token = $("#token-input").value.trim(); sessionStorage.setItem("fleet_token", state.token); toast("管理凭据已保存到当前会话"); window.setTimeout(refresh, 0); });
+  renderIcons();
   refresh();
   function userIsChoosingAction() {
     return Boolean(document.querySelector("dialog[open]") || document.activeElement?.matches("select[data-change]"));

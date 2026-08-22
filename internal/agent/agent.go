@@ -84,6 +84,8 @@ func Push(ctx context.Context, c Config) error {
 		if r.Inventory, err = os.ReadFile(c.InventoryPath); err != nil {
 			return fmt.Errorf("read inventory: %w", err)
 		}
+	} else if r.Inventory, err = DiscoverInventory(ctx, c.NodeID); err != nil {
+		return fmt.Errorf("discover native inventory: %w", err)
 	}
 	if c.DriftPath != "" {
 		if r.Drift, err = os.ReadFile(c.DriftPath); err != nil && !errors.Is(err, os.ErrNotExist) {

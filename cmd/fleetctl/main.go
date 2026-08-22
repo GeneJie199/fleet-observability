@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"net"
@@ -30,6 +31,10 @@ func main() {
 	}
 	var err error
 	switch os.Args[1] {
+	case "up":
+		err = up(os.Args[2:])
+	case "doctor":
+		err = doctor(os.Args[2:])
 	case "serve":
 		err = serve(os.Args[2:])
 	case "push":
@@ -43,13 +48,16 @@ func main() {
 		os.Exit(2)
 	}
 	if err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return
+		}
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "fleetctl serve [--addr 127.0.0.1:8770 --data ./fleet-data]\nfleetctl agent --center URL --node ID [--interval 30s --inventory FILE --drift FILE]\nfleetctl push --center URL --node ID --inventory FILE [--drift FILE]")
+	fmt.Fprintln(os.Stderr, "fleetctl up [--addr 127.0.0.1:8770 --data DIR --open=true]\nfleetctl doctor [--url http://127.0.0.1:8770 --data DIR]\nfleetctl serve [--addr 127.0.0.1:8770 --data ./fleet-data]\nfleetctl agent --center URL --node ID [--interval 30s --inventory FILE --drift FILE]\nfleetctl push --center URL --node ID --inventory FILE [--drift FILE]")
 }
 
 func serve(args []string) error {
@@ -61,6 +69,8 @@ func serve(args []string) error {
 	tlsKey := fs.String("tls-key", "", "TLS server private key")
 	clientCA := fs.String("client-ca", "", "CA file used to require and verify client certificates")
 	webhook := fs.String("webhook-url", "", "optional alert webhook URL")
+	notificationsPath := fs.String("notifications", "", "notification channel and delivery policy JSON")
+	aiProviderPath := fs.String("ai-provider", "", "optional evidence explanation provider JSON")
 	telemetryRetention := fs.Duration("telemetry-retention", 30*24*time.Hour, "native metric retention")
 	telemetryMaxSeries := fs.Int("telemetry-max-series", 50000, "maximum retained metric series")
 	telemetryMaxBatch := fs.Int("telemetry-max-batch", 10000, "maximum points per telemetry batch")
@@ -70,6 +80,7 @@ func serve(args []string) error {
 	eventMaxBatch := fs.Int("event-max-batch", 5000, "maximum events per batch")
 	historyMaxEntries := fs.Int("history-max-entries", 2000, "maximum retained node reports per node")
 	historyMaxBytes := fs.Int64("history-max-bytes", 64<<20, "maximum retained node report history bytes per node")
+	evidenceMaxPackages := fs.Int("evidence-max-packages", 1000, "maximum retained immutable evidence packages")
 	protectReads := fs.Bool("protect-reads", false, "require the bearer token for read APIs")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -89,7 +100,23 @@ func serve(args []string) error {
 	if !isLoopback {
 		*protectReads = true
 	}
-	s, err := center.NewWithOptions(*data, os.Getenv(*tokenEnv), *webhook, center.Options{TelemetryRetention: *telemetryRetention, TelemetryMaxSeries: *telemetryMaxSeries, TelemetryMaxBatch: *telemetryMaxBatch, TelemetryMaxSamples: *telemetryMaxSamples, EventRetention: *eventRetention, EventMaxEntries: *eventMaxEntries, EventMaxBatch: *eventMaxBatch, HistoryMaxEntries: *historyMaxEntries, HistoryMaxBytes: *historyMaxBytes, ProtectReads: *protectReads})
+	var notificationConfig *center.NotificationConfig
+	if *notificationsPath != "" {
+		loaded, err := center.LoadNotificationConfig(*notificationsPath)
+		if err != nil {
+			return err
+		}
+		notificationConfig = &loaded
+	}
+	var aiConfig *center.AIProviderConfig
+	if *aiProviderPath != "" {
+		loaded, err := center.LoadAIProviderConfig(*aiProviderPath)
+		if err != nil {
+			return err
+		}
+		aiConfig = &loaded
+	}
+	s, err := center.NewWithOptions(*data, os.Getenv(*tokenEnv), *webhook, center.Options{TelemetryRetention: *telemetryRetention, TelemetryMaxSeries: *telemetryMaxSeries, TelemetryMaxBatch: *telemetryMaxBatch, TelemetryMaxSamples: *telemetryMaxSamples, EventRetention: *eventRetention, EventMaxEntries: *eventMaxEntries, EventMaxBatch: *eventMaxBatch, HistoryMaxEntries: *historyMaxEntries, HistoryMaxBytes: *historyMaxBytes, EvidenceMaxPackages: *evidenceMaxPackages, ProtectReads: *protectReads, NotificationConfig: notificationConfig, AIConfig: aiConfig})
 	if err != nil {
 		return err
 	}
@@ -101,6 +128,7 @@ func serve(args []string) error {
 	server := &http.Server{Addr: *addr, Handler: s.Handler(), ReadHeaderTimeout: 10 * time.Second}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	go s.RunNotificationWorker(ctx)
 	done := make(chan error, 1)
 	go func() {
 		if *clientCA != "" {

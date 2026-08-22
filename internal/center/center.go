@@ -36,9 +36,12 @@ type Server struct {
 	mu                     sync.RWMutex
 	telemetry              *telemetry.Store
 	eventStore             *events.Store
+	notifications          *NotificationEngine
+	ai                     *AIProvider
 	protectReads           bool
 	historyMaxEntries      int
 	historyMaxBytes        int64
+	evidenceMaxPackages    int
 	historyCounts          map[string]int
 }
 
@@ -52,7 +55,10 @@ type Options struct {
 	EventMaxBatch       int
 	HistoryMaxEntries   int
 	HistoryMaxBytes     int64
+	EvidenceMaxPackages int
 	ProtectReads        bool
+	NotificationConfig  *NotificationConfig
+	AIConfig            *AIProviderConfig
 }
 
 func New(dataDir, token string) (*Server, error) {
@@ -78,6 +84,12 @@ func NewWithOptions(dataDir, token, webhookURL string, options Options) (*Server
 	if options.HistoryMaxBytes <= 0 {
 		options.HistoryMaxBytes = 64 << 20
 	}
+	if options.EvidenceMaxPackages <= 0 {
+		options.EvidenceMaxPackages = 1000
+	}
+	if options.EvidenceMaxPackages > 100000 {
+		return nil, errors.New("evidence package limit exceeds safe maximum")
+	}
 	historyCounts, err := prepareHistories(filepath.Join(dataDir, "history"), options.HistoryMaxEntries, options.HistoryMaxBytes)
 	if err != nil {
 		return nil, fmt.Errorf("prepare node report history: %w", err)
@@ -96,7 +108,15 @@ func NewWithOptions(dataDir, token, webhookURL string, options Options) (*Server
 	if err := eventStore.Prune(time.Now().UTC()); err != nil {
 		return nil, fmt.Errorf("prune native event store: %w", err)
 	}
-	s := &Server{dir: dataDir, token: token, webhookURL: webhookURL, telemetry: telemetryStore, eventStore: eventStore, protectReads: options.ProtectReads, historyMaxEntries: options.HistoryMaxEntries, historyMaxBytes: options.HistoryMaxBytes, historyCounts: historyCounts}
+	notifications, err := NewNotificationEngine(dataDir, options.NotificationConfig, webhookURL)
+	if err != nil {
+		return nil, fmt.Errorf("initialize alert delivery: %w", err)
+	}
+	ai, err := NewAIProvider(options.AIConfig)
+	if err != nil {
+		return nil, fmt.Errorf("initialize AI provider: %w", err)
+	}
+	s := &Server{dir: dataDir, token: token, webhookURL: webhookURL, telemetry: telemetryStore, eventStore: eventStore, notifications: notifications, ai: ai, protectReads: options.ProtectReads, historyMaxEntries: options.HistoryMaxEntries, historyMaxBytes: options.HistoryMaxBytes, evidenceMaxPackages: options.EvidenceMaxPackages, historyCounts: historyCounts}
 	if err := s.ensureDefaultRules(); err != nil {
 		return nil, fmt.Errorf("initialize metric rules: %w", err)
 	}
@@ -131,6 +151,15 @@ func (s *Server) routes() *http.ServeMux {
 	m.HandleFunc("DELETE /api/v1/agents/{id}", s.authorize(s.revokeAgent))
 	m.HandleFunc("GET /api/v1/alerts", s.listAlerts)
 	m.HandleFunc("PATCH /api/v1/alerts/{id}", s.authorize(s.updateAlert))
+	m.HandleFunc("GET /api/v1/notifications", s.notificationStatus)
+	m.HandleFunc("GET /api/v1/notifications/deliveries", s.listNotificationDeliveries)
+	m.HandleFunc("POST /api/v1/notifications/deliveries/{id}/retry", s.authorize(s.retryNotificationDelivery))
+	m.HandleFunc("GET /api/v1/evidence/packages", s.listEvidencePackages)
+	m.HandleFunc("POST /api/v1/evidence/packages", s.authorize(s.createEvidencePackage))
+	m.HandleFunc("GET /api/v1/evidence/packages/{id}", s.getEvidencePackage)
+	m.HandleFunc("GET /api/v1/evidence/packages/{id}/ai-preview", s.getAIRequestPreview)
+	m.HandleFunc("POST /api/v1/evidence/packages/{id}/explain", s.authorize(s.explainEvidencePackage))
+	m.HandleFunc("GET /api/v1/evidence/packages/{id}/explanations", s.listEvidenceExplanations)
 	m.HandleFunc("GET /api/v1/rules", s.listRules)
 	m.HandleFunc("POST /api/v1/rules", s.authorize(s.createRule))
 	m.HandleFunc("PATCH /api/v1/rules/{id}", s.authorize(s.updateRule))
@@ -142,9 +171,15 @@ func (s *Server) routes() *http.ServeMux {
 	m.HandleFunc("PATCH /api/v1/groups/{id}", s.authorize(s.updateGroup))
 	m.HandleFunc("DELETE /api/v1/groups/{id}", s.authorize(s.deleteGroup))
 	m.HandleFunc("GET /api/v1/topology", s.topology)
+	m.HandleFunc("GET /api/v1/topology/snapshots", s.listTopologySnapshots)
+	m.HandleFunc("POST /api/v1/topology/snapshots", s.authorize(s.createTopologySnapshot))
+	m.HandleFunc("GET /api/v1/topology/snapshots/{id}", s.getTopologySnapshot)
+	m.HandleFunc("GET /api/v1/topology/diff", s.topologyDiff)
+	m.HandleFunc("GET /api/v1/topology/relationships/audit", s.listRelationshipAudit)
 	m.HandleFunc("PATCH /api/v1/topology/relationships/{id}", s.authorize(s.updateRelationship))
 	m.HandleFunc("GET /api/v1/coverage", s.coverage)
 	m.HandleFunc("GET /api/v1/databases", s.databases)
+	m.HandleFunc("GET /api/v1/recommendations", s.recommendations)
 	m.HandleFunc("POST /api/v1/telemetry/batches", s.authorizeAgent(s.ingestTelemetry))
 	m.HandleFunc("POST /api/v1/ingest/prometheus", s.authorize(s.ingestCompatibility("prometheus")))
 	m.HandleFunc("POST /api/v1/ingest/influx", s.authorize(s.ingestCompatibility("influx")))
@@ -181,6 +216,10 @@ func securityHeaders(next http.Handler) http.Handler {
 }
 func (s *Server) authorize(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if !hasBrowserMutationIntent(r) {
+			writeError(w, http.StatusForbidden, "cross-site mutation rejected")
+			return
+		}
 		if s.token != "" {
 			header := r.Header.Get("Authorization")
 			if !strings.HasPrefix(header, "Bearer ") || subtle.ConstantTimeCompare([]byte(strings.TrimPrefix(header, "Bearer ")), []byte(s.token)) != 1 {
@@ -190,6 +229,16 @@ func (s *Server) authorize(next http.HandlerFunc) http.HandlerFunc {
 		}
 		next(w, r)
 	}
+}
+
+func hasBrowserMutationIntent(r *http.Request) bool {
+	if strings.EqualFold(r.Header.Get("Sec-Fetch-Site"), "cross-site") {
+		return false
+	}
+	if r.Header.Get("Origin") == "" {
+		return true
+	}
+	return r.Header.Get("X-FleetScope-Request") == "console"
 }
 
 func (s *Server) putReport(w http.ResponseWriter, r *http.Request) {
@@ -251,9 +300,8 @@ func (s *Server) putReport(w http.ResponseWriter, r *http.Request) {
 	changes, _ := s.readChanges()
 	changes = mergeChanges(changes, deriveChanges(report))
 	_ = s.writeChanges(changes)
-	if s.webhookURL != "" && len(newAlerts) > 0 {
-		go s.notifyWebhook(newAlerts)
-	}
+	_ = s.captureAutomaticTopologyLocked(report.ObservedAt)
+	s.notifyAlerts(newAlerts)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "accepted", "node_id": id})
@@ -694,7 +742,7 @@ func (s *Server) buildTopology() Topology {
 			if id == actualHostID {
 				health = summary.Health
 			}
-			t.Nodes = append(t.Nodes, TopologyNode{ID: id, NodeID: rep.NodeID, Type: x.Type, Label: labelForResource(x.Type, id, x.Host, x.Service, x.Process, x.Endpoint, x.Metadata), Health: health, Metadata: x.Metadata})
+			t.Nodes = append(t.Nodes, TopologyNode{ID: id, NodeID: rep.NodeID, Type: x.Type, Label: labelForResource(x.Type, id, x.Host, x.Service, x.Process, x.Endpoint, x.Deployment, x.Container, x.Database, x.Network, x.Volume, x.Metadata), Health: health, Metadata: x.Metadata})
 			seen[id] = true
 		}
 		if !seen[actualHostID] {
@@ -954,18 +1002,6 @@ func unseenAlerts(old, fresh []Alert) []Alert {
 		}
 	}
 	return out
-}
-func (s *Server) notifyWebhook(alerts []Alert) {
-	b, _ := json.Marshal(map[string]any{"event": "fleet.alert.opened", "alerts": alerts})
-	req, err := http.NewRequest(http.MethodPost, s.webhookURL, strings.NewReader(string(b)))
-	if err != nil {
-		return
-	}
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := (&http.Client{Timeout: 10 * time.Second}).Do(req)
-	if err == nil {
-		_ = resp.Body.Close()
-	}
 }
 func deriveChanges(r Report) []Change {
 	var d driftDocument

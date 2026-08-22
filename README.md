@@ -7,7 +7,8 @@
 
 ## 可交付能力
 
-- 单二进制同时提供 Center、常驻 Agent 和兼容用的一次性 `push`。
+- 单二进制同时提供一键本机模式、Center、常驻 Agent、诊断和兼容用的一次性 `push`。
+- `fleetctl up` 自动生成管理凭据、启动 Center、登记本机 Agent、执行原生发现并打开控制台。
 - 原生采集 CPU、内存、磁盘、负载、运行时间、网络、进程、Nginx、Redis、PostgreSQL、MySQL 和 Docker Engine；采集器支持独立周期、并发上限、超时和确定性错峰。
 - 指标与事件分别使用磁盘队列，断网后按序重传，Center 通过节点/来源序列去重。
 - 自带分段时序存储、范围查询、步长聚合、目录、容量上限和运行期保留清理。
@@ -16,38 +17,43 @@
 - HTTP、TCP、TLS 证书、PostgreSQL、MySQL 探针；数据库凭据只从环境变量读取。
 - 接收 InfraScout inventory/drift，聚合主机、进程、端口、服务、容器、网络和卷。
 - 用户可配置任意指标的阈值、持续时间、节点/来源/标签范围和级别；规则状态、确认和恢复持久化。
-- 自动生成节点健康、失联状态、变化事件和跨节点资源拓扑。
+- 自动生成节点健康、失联状态、变化事件和跨节点资源拓扑；自动发现常见端口与进程并给出不含明文凭据的采集建议。
 - 资源组贯穿总览、节点、数据库、告警、变化、拓扑和监控覆盖筛选。
-- 拓扑支持部署、服务依赖、网络暴露、数据库和故障影响视角；关系保留置信度、证据、发现时间与人工确认审计。
+- 拓扑支持部署、服务依赖、网络暴露、数据库和故障影响视角；关系保留置信度、证据、发现时间与人工确认审计，并自动保留结构快照、发布/事故上下文和历史差异。
 - 监控覆盖页明确显示主机指标、InfraScout 清单/漂移和服务探针空白。
 - 告警确认/解决；变化可标记预期、批准、临时允许、禁止或退回审核。
 - 指标分析页直接查询内置时序存储；事件流检索原生日志和结构化事件。
-- 首次注册使用管理令牌，后续由节点绑定凭证上报；支持凭证撤销/显式轮换、TLS、可选 mTLS、读 API 保护和告警 Webhook。
+- 首次注册使用管理令牌，后续由节点绑定凭证上报；支持凭证撤销/显式轮换、TLS、可选 mTLS 和读 API 保护。
+- 通知支持 Webhook、飞书、企业微信、钉钉、Slack、Telegram 和 SMTP，具备持久队列、聚合、去重、抑制、发布窗口、指数重试和人工重投。
+- 证据分析先在本地生成不可变脱敏包，默认排除密钥、环境变量、业务行、源代码和原始日志；只有用户检查精确预览并确认后才调用可选 AI Provider。
 - 响应式中文 Web 控制台，无 Node/CDN 运行依赖。
 
 ## 快速开始
 
 ```bash
-go test ./...
-go build -trimpath -o fleetctl ./cmd/fleetctl
-
-export FLEET_TOKEN='replace-with-a-long-random-token'
-./fleetctl serve --addr 127.0.0.1:8770 --data ./fleet-data
+./fleetctl up
 ```
 
-在另一终端启动 Agent：
+打开的控制台已经包含本机节点、指标、自动发现、告警、变化、拓扑、通知和证据分析。数据与自动生成的管理凭据保存在当前用户配置目录；地址只监听 `127.0.0.1`。运行诊断：
+
+```bash
+./fleetctl doctor
+```
+
+从源码体验：`go build -trimpath -o fleetctl ./cmd/fleetctl && ./fleetctl up`。需要中心与多台 Agent 分开部署时，再使用后续命令和运维指南。
+
+## 多节点部署
+
+Center 与 Agent 可独立运行：
 
 ```bash
 export FLEET_TOKEN='replace-with-a-long-random-token'
-./fleetctl agent \
-  --center http://127.0.0.1:8770 \
-  --node host-01 \
-  --once \
-  --label environment=test \
-  --label version=1.2.3
+./fleetctl serve --addr 127.0.0.1:8770 --data ./fleet-data
+./fleetctl agent --center http://127.0.0.1:8770 --node host-01 \
+  --label environment=test --label version=1.2.3
 ```
 
-首次启动时，Agent 使用 `FLEET_TOKEN` 注册并在 spool 目录创建权限为 `0600` 的 `agent-credential.json`。之后的指标、事件和节点报告只使用该节点凭证；管理令牌不再随每次上报发送。
+首次启动时，Agent 使用管理令牌注册并在 spool 目录创建节点凭证。之后的指标、事件和节点报告只使用节点凭证；管理令牌不再随每次上报发送。
 
 打开 `http://127.0.0.1:8770/`。控制台包含总览、节点、指标分析、数据接入、事件流、数据库、告警规则、告警、变化、拓扑和覆盖视图。
 
@@ -133,6 +139,11 @@ metric-rule-states.json 持续时间和触发状态
 changes.json            漂移及人工分类
 groups.json             资源组及节点成员
 topology-reviews.json   关系确认、处理人和审核说明
+topology-review-audit.json 关系确认的追加式审计记录
+topology-snapshots.json 自动与人工拓扑快照
+notifications/          持久化投递队列和结果
+evidence-packages/      不可变脱敏证据包
+evidence-explanations/  独立保存的 AI 解释
 ```
 
 API 还包括 `/telemetry/query`、`/telemetry/catalog`、`/events`、`/rules`、`/agents` 和三个兼容接入入口。完整协议、应用采集指标与容量语义见 [docs/native-monitoring.md](docs/native-monitoring.md)。
@@ -143,7 +154,13 @@ API 还包括 `/telemetry/query`、`/telemetry/catalog`、`/events`、`/rules`�
 sudo sh ./scripts/install.sh ./fleetctl
 ```
 
-Center/Agent systemd 单元、TLS、环境文件和备份说明见 [docs/operations.md](docs/operations.md)。
+Windows 当前用户安装：
+
+```powershell
+.\scripts\install.ps1 -Source .\fleetctl.exe
+```
+
+发布压缩包已经包含安装脚本、systemd 单元、示例配置、README、许可证和运维文档。Center/Agent 服务、TLS、通知、AI Provider、备份与卸载说明见 [docs/operations.md](docs/operations.md)。
 
 ## 产品边界
 

@@ -309,6 +309,8 @@ func (p *pipeline) sendReport(ctx context.Context, observedAt time.Time) error {
 		if report.Inventory, err = os.ReadFile(config.InventoryPath); err != nil {
 			return fmt.Errorf("read inventory: %w", err)
 		}
+	} else if report.Inventory, err = DiscoverInventory(ctx, config.NodeID); err != nil {
+		return fmt.Errorf("discover native inventory: %w", err)
 	}
 	if config.DriftPath != "" {
 		if report.Drift, err = os.ReadFile(config.DriftPath); err != nil && !errors.Is(err, os.ErrNotExist) {

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -229,12 +230,17 @@ func TestPipelineCollectorTimeoutDoesNotBlockReporting(t *testing.T) {
 		w.WriteHeader(http.StatusAccepted)
 	}))
 	defer server.Close()
+	inventoryPath := t.TempDir() + string(os.PathSeparator) + "inventory.json"
+	if err := os.WriteFile(inventoryPath, []byte(`{"hostname":"node-timeout"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	pipeline, err := newPipeline(Config{
 		CenterURL:        server.URL,
 		NodeID:           "node-timeout",
 		Interval:         time.Minute,
 		ReportInterval:   time.Minute,
 		CollectorTimeout: 30 * time.Millisecond,
+		InventoryPath:    inventoryPath,
 		SpoolDir:         t.TempDir(),
 		Collectors:       []Collector{timeoutCollector{}},
 		Client:           server.Client(),
