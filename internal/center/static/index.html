@@ -7,11 +7,12 @@
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
+  <a class="skip-link" href="#main-content">跳到主要内容</a>
   <header class="topbar">
     <div class="product-brand"><span class="suite-kicker">AI DEVOPS OPEN SUITE</span><div><strong class="product-name">FleetScope</strong><span class="product-subtitle">原生监控中心</span></div></div>
     <div class="top-actions">
-      <details class="suite-switcher"><summary><i data-lucide="blocks"></i>模块</summary><div class="suite-menu"><a data-suite="devcycle">DevCycle<span>研发交付</span></a><a data-suite="infrascout">InfraScout<span>基础设施发现</span></a><a data-suite="fleetscope" class="current">FleetScope<span>原生监控</span></a><a data-suite="releaseguard">ReleaseGuard<span>发布门禁</span></a></div></details>
-      <span id="sync-state" role="status">等待同步</span>
+      <details class="suite-switcher"><summary aria-label="套件模块"><i data-lucide="blocks"></i><span>套件模块</span></summary><div class="suite-menu"><a data-suite="devcycle"><i data-lucide="workflow"></i><span><b>DevCycle</b><small>研发交付</small></span></a><a data-suite="infrascout"><i data-lucide="scan-search"></i><span><b>InfraScout</b><small>基础设施发现</small></span></a><a data-suite="fleetscope" class="current"><i data-lucide="activity"></i><span><b>FleetScope</b><small>原生监控</small></span></a><a data-suite="releaseguard"><i data-lucide="shield-check"></i><span><b>ReleaseGuard</b><small>发布门禁</small></span></a></div></details>
+      <span id="sync-state">等待同步</span><span id="sync-announcer" class="sr-only" role="status" aria-live="polite"></span>
       <button id="token-button" class="quiet command-with-icon" type="button"><i data-lucide="key-round"></i>管理凭据</button>
       <button id="refresh" class="icon-command" type="button" title="立即刷新" aria-label="立即刷新"><i data-lucide="refresh-cw"></i></button>
     </div>
@@ -19,7 +20,7 @@
   <div id="data-banner" class="data-banner" role="alert"></div>
   <div class="contextbar">
     <label for="group-select">资源组</label>
-    <select id="group-select"><option value="">全部资源</option></select>
+    <select id="group-select" aria-label="资源组"><option value="">全部资源</option></select>
     <button id="group-manage" class="command-with-icon" type="button"><i data-lucide="settings-2"></i>管理资源组</button>
     <span id="group-summary">全部节点与资源</span>
   </div>
@@ -40,7 +41,7 @@
       <button data-view="rules" type="button"><i data-lucide="list-checks"></i>告警规则</button>
       <button data-view="sources" type="button"><i data-lucide="plug-zap"></i>数据接入</button>
     </nav>
-    <main>
+    <main id="main-content" tabindex="-1">
       <section class="view active" id="view-overview">
         <div class="page-title"><div><h1>全局健康</h1><p>按严重程度聚合节点、告警和待审核变化。</p></div></div>
         <section id="fleet-start" class="start-panel hidden" aria-live="polite"></section>
@@ -153,18 +154,18 @@
       </section>
     </main>
   </div>
-  <dialog id="node-dialog">
+  <dialog id="node-dialog" aria-labelledby="node-title">
     <div class="dialog-head"><div><h2 id="node-title">节点详情</h2><p id="node-subtitle"></p></div><button data-close aria-label="关闭" type="button">关闭</button></div>
     <div id="node-detail"></div>
   </dialog>
-  <dialog id="token-dialog">
+  <dialog id="token-dialog" aria-labelledby="token-title">
     <form method="dialog">
-      <div class="dialog-head"><div><h2>写入凭据</h2><p>仅保存在当前浏览器会话，用于确认告警和审核变化。</p></div><button value="cancel">关闭</button></div>
+      <div class="dialog-head"><div><h2 id="token-title">写入凭据</h2><p>仅保存在当前浏览器会话，用于确认告警和审核变化。</p></div><button value="cancel">关闭</button></div>
       <label>Bearer Token<input id="token-input" type="password" autocomplete="off"></label>
       <div class="form-actions"><button value="cancel" class="quiet">取消</button><button id="save-token" value="default">保存</button></div>
     </form>
   </dialog>
-  <dialog id="action-dialog">
+  <dialog id="action-dialog" aria-labelledby="action-title">
     <form id="action-form">
       <div class="dialog-head"><div><h2 id="action-title">处置</h2><p id="action-context"></p></div><button data-close aria-label="关闭" type="button">关闭</button></div>
       <input id="action-kind" type="hidden">
@@ -179,8 +180,8 @@
       <div class="form-actions"><button data-close type="button" class="quiet">取消</button><button id="action-submit" type="submit">保存处置</button></div>
     </form>
   </dialog>
-  <dialog id="group-dialog">
-    <div class="dialog-head"><div><h2>资源组</h2><p>将相关节点组合后，所有视图和拓扑只显示该组数据。</p></div><button data-close aria-label="关闭" type="button">关闭</button></div>
+  <dialog id="group-dialog" aria-labelledby="group-title">
+    <div class="dialog-head"><div><h2 id="group-title">资源组</h2><p>将相关节点组合后，所有视图和拓扑只显示该组数据。</p></div><button data-close aria-label="关闭" type="button">关闭</button></div>
     <div id="group-list" class="group-list"></div>
     <form id="group-form" class="group-form">
       <input id="group-id" type="hidden">
@@ -190,7 +191,7 @@
       <div class="form-actions"><button id="group-reset" type="button" class="quiet">新建一组</button><button type="submit">保存资源组</button></div>
     </form>
   </dialog>
-  <dialog id="rule-dialog">
+  <dialog id="rule-dialog" aria-labelledby="rule-title">
     <form id="rule-form">
       <div class="dialog-head"><div><h2 id="rule-title">新建告警规则</h2><p>规则按每条节点、来源和标签序列独立计算持续时间。</p></div><button data-close aria-label="关闭" type="button">关闭</button></div>
       <input id="rule-id" type="hidden">
@@ -210,20 +211,20 @@
       <div class="form-actions"><button data-close type="button" class="quiet">取消</button><button id="rule-submit" type="submit">保存规则</button></div>
     </form>
   </dialog>
-  <dialog id="snapshot-dialog" class="compact-dialog">
+  <dialog id="snapshot-dialog" class="compact-dialog" aria-labelledby="snapshot-title">
     <form id="snapshot-form">
-      <div class="dialog-head"><div><h2>保存拓扑快照</h2><p>可选关联发布或事故，方便事后按上下文对比。</p></div><button data-close aria-label="关闭" type="button"><i data-lucide="x"></i></button></div>
+      <div class="dialog-head"><div><h2 id="snapshot-title">保存拓扑快照</h2><p>可选关联发布或事故，方便事后按上下文对比。</p></div><button data-close aria-label="关闭" type="button"><i data-lucide="x"></i></button></div>
       <div class="dialog-fields"><label>发布 ID<input id="snapshot-release" maxlength="128" placeholder="可选"></label><label>事故 ID<input id="snapshot-incident" maxlength="128" placeholder="可选"></label><label class="wide">备注<textarea id="snapshot-note" maxlength="1000" rows="3"></textarea></label></div>
       <div class="form-actions"><button data-close type="button" class="quiet">取消</button><button type="submit">保存快照</button></div>
     </form>
   </dialog>
-  <dialog id="evidence-dialog">
+  <dialog id="evidence-dialog" aria-labelledby="evidence-title">
     <div class="dialog-head"><div><h2 id="evidence-title">证据包</h2><p id="evidence-subtitle"></p></div><button data-close aria-label="关闭" type="button"><i data-lucide="x"></i></button></div>
     <div id="evidence-detail" class="evidence-detail"></div>
     <div class="form-actions evidence-actions"><button id="evidence-preview" class="command-with-icon" type="button"><i data-lucide="eye"></i>查看 AI 发送预览</button></div>
   </dialog>
-  <dialog id="ai-preview-dialog">
-    <div class="dialog-head"><div><h2>AI 发送预览</h2><p id="ai-provider-state"></p></div><button data-close aria-label="关闭" type="button"><i data-lucide="x"></i></button></div>
+  <dialog id="ai-preview-dialog" aria-labelledby="ai-preview-title">
+    <div class="dialog-head"><div><h2 id="ai-preview-title">AI 发送预览</h2><p id="ai-provider-state"></p></div><button data-close aria-label="关闭" type="button"><i data-lucide="x"></i></button></div>
     <div id="ai-privacy" class="ai-privacy"></div>
     <details class="payload-preview"><summary>查看将要发送的完整内容</summary><pre id="ai-payload"></pre></details>
     <label class="confirm-send"><input id="ai-confirm" type="checkbox">我已检查以上内容，同意发送给当前配置的 AI Provider</label>

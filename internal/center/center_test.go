@@ -13,6 +13,23 @@ import (
 	"time"
 )
 
+func TestUIAccessibilityContract(t *testing.T) {
+	s, err := New(t.TempDir(), "secret")
+	if err != nil {
+		t.Fatal(err)
+	}
+	recorder := httptest.NewRecorder()
+	s.Handler().ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/", nil))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("GET / = %d", recorder.Code)
+	}
+	for _, marker := range []string{`class="skip-link"`, `id="main-content" tabindex="-1"`, `id="sync-announcer"`, `aria-label="资源组"`, `aria-labelledby="token-title"`, `aria-label="套件模块"`} {
+		if !strings.Contains(recorder.Body.String(), marker) {
+			t.Fatalf("index page missing UI contract %q", marker)
+		}
+	}
+}
+
 func TestReportLifecycleAndAuth(t *testing.T) {
 	s, err := New(t.TempDir(), "secret")
 	if err != nil {

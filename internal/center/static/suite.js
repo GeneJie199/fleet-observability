@@ -41,4 +41,13 @@
       if (!menu.contains(event.target)) menu.removeAttribute("open");
     });
   });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    const menu = event.target.closest?.(".suite-switcher[open]") || document.querySelector(".suite-switcher[open]");
+    if (!menu) return;
+    menu.removeAttribute("open");
+    menu.querySelector("summary")?.focus();
+    event.preventDefault();
+  });
 })();

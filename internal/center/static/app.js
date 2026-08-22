@@ -216,7 +216,7 @@
       sync.className = "error";
       banner.textContent = `有 ${failures.length} 个数据源刷新失败；页面保留上一次成功结果。${failures.join(" · ")}`;
       banner.classList.add("show");
-      toast("部分运行数据刷新失败", true);
+      $("#sync-announcer").textContent = "";
       if (results.some((result) => result.status === "rejected" && result.reason.status === 401) && !$("#token-dialog").open) {
         banner.textContent = "需要管理凭据才能读取 FleetScope 数据。凭据只保存在当前浏览器会话。";
         $("#token-input").value = state.token;
@@ -227,6 +227,7 @@
       sync.textContent = `已同步 ${state.lastSync.toLocaleTimeString("zh-CN", { hour12: false })}`;
       sync.className = "ok";
       banner.classList.remove("show");
+      if (!$("#sync-announcer").textContent) $("#sync-announcer").textContent = "FleetScope 数据已同步";
     }
     if (state.view === "topology") await renderTopology();
     if (state.view === "metrics" && state.catalog.length) await queryMetric();
@@ -346,7 +347,7 @@
     $("#metric-summary").innerHTML = `<div class="metric"><b>${fmt(catalog.length)}</b><span>指标名称</span><small>当前存储目录</small></div><div class="metric"><b>${fmt(series)}</b><span>活跃序列</span><small>节点、来源与标签组合</small></div><div class="metric"><b>${fmt(samples)}</b><span>保留样本</span><small>查询窗口内可用</small></div>`;
     const target = $("#metric-catalog");
     target.classList.remove("loading");
-    target.innerHTML = catalog.length ? `<table><thead><tr><th>指标</th><th>类型 / 单位</th><th>序列</th><th>样本</th><th>节点</th><th>来源</th><th>最后采样</th></tr></thead><tbody>${catalog.map((item) => `<tr class="clickable" data-metric="${esc(item.metric)}" tabindex="0"><td><span class="primary mono">${esc(item.metric)}</span></td><td>${esc(item.kind)}${item.unit ? ` · ${esc(item.unit)}` : ""}</td><td>${fmt(item.series)}</td><td>${fmt(item.samples)}</td><td>${esc((item.nodes || []).join("、"))}</td><td>${esc((item.sources || []).join("、"))}</td><td>${date(item.last_seen_ms)}</td></tr>`).join("")}</tbody></table>` : empty("时序存储中还没有指标。启动原生 Agent 或向兼容入口发送数据后会自动出现。");
+    target.innerHTML = catalog.length ? `<table><thead><tr><th>指标</th><th>类型 / 单位</th><th>序列</th><th>样本</th><th>节点</th><th>来源</th><th>最后采样</th></tr></thead><tbody>${catalog.map((item) => `<tr class="clickable" data-metric="${esc(item.metric)}" tabindex="0" role="button" aria-label="查询指标 ${esc(item.metric)}"><td><span class="primary mono">${esc(item.metric)}</span></td><td>${esc(item.kind)}${item.unit ? ` · ${esc(item.unit)}` : ""}</td><td>${fmt(item.series)}</td><td>${fmt(item.samples)}</td><td>${esc((item.nodes || []).join("、"))}</td><td>${esc((item.sources || []).join("、"))}</td><td>${date(item.last_seen_ms)}</td></tr>`).join("")}</tbody></table>` : empty("时序存储中还没有指标。启动原生 Agent 或向兼容入口发送数据后会自动出现。");
     if (freshest) $("#metric-query-meta").textContent = `最新样本 ${date(freshest)}`;
 	renderMetricNodeOptions();
   }
@@ -414,11 +415,14 @@
       return `<line x1="${xPos}" y1="${top}" x2="${xPos}" y2="${height-bottom}" class="chart-grid chart-grid-x"></line><text x="${xPos}" y="${height-16}" text-anchor="${index === 0 ? "start" : index === 5 ? "end" : "middle"}" class="chart-axis">${esc(label)}</text>`;
     }).join("");
     const colors = ["#12634f", "#3d6ea8", "#b06a24", "#9b3f54", "#6d5a9b", "#527a3a", "#287d8e", "#8a5d2e", "#4b62a3", "#a14d3d"];
+    const dashes = ["", "8 4", "3 3", "12 4 3 4", "2 4", "10 3"];
     const lines = result.series.map((item, index) => {
       const points = item.points.map((point) => `${x(point.timestamp_ms).toFixed(1)},${y(point.value).toFixed(1)}`).join(" ");
-      return `<polyline points="${points}" class="chart-line" style="stroke:${colors[index % colors.length]}"><title>${esc(item.node_id)} · ${esc(item.source)}</title></polyline>`;
+      const first = item.points[0];
+      const marker = first ? `<circle cx="${x(first.timestamp_ms).toFixed(1)}" cy="${y(first.value).toFixed(1)}" r="8" class="chart-series-marker" style="fill:${colors[index % colors.length]}"></circle><text x="${x(first.timestamp_ms).toFixed(1)}" y="${(y(first.value) + 3.5).toFixed(1)}" class="chart-series-number" text-anchor="middle">${index + 1}</text>` : "";
+      return `<polyline points="${points}" class="chart-line" style="stroke:${colors[index % colors.length]}" stroke-dasharray="${dashes[index % dashes.length]}"><title>序列 ${index + 1}：${esc(item.node_id)} · ${esc(item.source)}</title></polyline>${marker}`;
     }).join("");
-    const legend = result.series.map((item, index) => `<span><i style="background:${colors[index % colors.length]}"></i><b>${esc(item.node_id)}</b><small>${esc(item.source)}${Object.keys(item.labels || {}).length ? ` · ${esc(Object.values(item.labels).join("/"))}` : ""}</small></span>`).join("");
+    const legend = result.series.map((item, index) => `<span><i style="background:${colors[index % colors.length]}">${index + 1}</i><b>${esc(item.node_id)}</b><small>${esc(item.source)}${Object.keys(item.labels || {}).length ? ` · ${esc(Object.values(item.labels).join("/"))}` : ""}</small></span>`).join("");
     return `<div class="chart-head"><div><strong class="mono">${esc(metric)}</strong><span>${esc(result.series[0]?.unit || "无单位")}</span></div><div class="chart-legend">${legend}</div></div><svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(metric)} 指标趋势">${grid}${xTicks}<line x1="${left}" y1="${height-bottom}" x2="${width-right}" y2="${height-bottom}" class="chart-axis-line"></line>${lines}</svg>`;
   }
 
@@ -995,6 +999,7 @@
         if (item === navigation) item.setAttribute("aria-current", "page"); else item.removeAttribute("aria-current");
       });
       document.querySelectorAll(".view").forEach((item) => item.classList.toggle("active", item.id === `view-${state.view}`));
+      document.title = `${navigation.textContent.trim().replace(/\s+\d+$/, "")} · FleetScope`;
       await refresh();
       const heading = document.querySelector(".view.active h1");
       if (heading) { heading.tabIndex = -1; heading.focus({ preventScroll: true }); }
@@ -1233,9 +1238,11 @@
   $("#token-button").addEventListener("click", () => { $("#token-input").value = state.token; $("#token-dialog").showModal(); });
   $("#save-token").addEventListener("click", () => { state.token = $("#token-input").value.trim(); sessionStorage.setItem("fleet_token", state.token); toast("管理凭据已保存到当前会话"); window.setTimeout(refresh, 0); });
   renderIcons();
+  document.title = "全局健康 · FleetScope";
   refresh();
   function userIsChoosingAction() {
-    return Boolean(document.querySelector("dialog[open]") || document.activeElement?.matches("select[data-change]"));
+    const active = document.activeElement;
+    return Boolean(document.querySelector("dialog[open]") || (active && active !== document.body && active.matches('a[href], button, input, select, textarea, summary, [tabindex]')));
   }
   window.setInterval(function () { if (!document.hidden && !userIsChoosingAction()) refresh(); }, 30000);
   document.addEventListener("visibilitychange", function () { if (!document.hidden && !userIsChoosingAction()) refresh(); });
