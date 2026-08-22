@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.0 - 2026-08-23
+
+- Deliver the native Agent, collector, telemetry/event stores, fleet-first triage, recommendations, resource groups, topology history/diff, Change Center, alerting, delivery controls, and optional evidence-based AI.
+- Remove any runtime dependence on Prometheus or another collector while preserving Prometheus, Influx, and OTLP as optional compatibility inputs.
+- Enforce connect-time SSRF and header policy, compact telemetry memory, retain rolling latest bounded data, and publish a measured 100-node/3-day scale baseline.
+- Add ownership-safe checksum-verifying installers, complete platform archives plus stable suite binaries, fuzz/security gates, CycloneDX SBOM, and GitHub provenance.
+
 ## 0.4.0 - 2026-08-23
 
 - Add `fleetctl up` for a loopback Center and self-enrolling local Agent with generated persistent credentials, native discovery, optional InfraScout integration, and automatic console opening.

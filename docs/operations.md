@@ -69,7 +69,7 @@ Database DSNs are named through `dsn_env`; Redis secrets and HTTP authentication
 The repository includes separate center and Agent units. Review the environment examples before installing them:
 
 ```bash
-sudo sh ./scripts/install.sh ./fleetctl
+sudo sh ./scripts/install.sh install ./fleetctl ./checksums.txt
 sudo install -m 0644 deploy/fleet-center.service /etc/systemd/system/
 sudo install -m 0600 deploy/center.env.example /etc/fleetscope/center.env
 sudo systemctl daemon-reload
@@ -79,30 +79,37 @@ sudo systemctl enable --now fleet-center
 The installer performs the complete local Center/Agent setup, generates an initial token, installs both units, and starts them when systemd is available:
 
 ```bash
-sudo sh scripts/install.sh ./fleetctl
+sudo sh scripts/install.sh install ./fleetctl ./checksums.txt
 sudo sh scripts/install.sh doctor
 sudo sh scripts/install.sh uninstall
 ```
 
-Uninstall preserves configuration and data. Permanent removal requires the explicit `uninstall --purge-data` option.
+Uninstall preserves configuration and data. Permanent removal requires the explicit option and an exact ownership confirmation:
+
+```bash
+sudo FLEETSCOPE_CONFIRM_PURGE='/etc/fleetscope:/var/lib/fleetscope:/var/lib/fleetscope-agent' \
+  sh scripts/install.sh uninstall --purge-data
+```
+
+The installer never removes `/var/lib/infrascout`; that state belongs to InfraScout even when FleetScope reads it for discovery evidence.
 
 On Windows, the user-scoped installer copies the binary under `%LOCALAPPDATA%`, creates a Start Menu shortcut, and starts local mode without administrator privileges:
 
 ```powershell
-.\scripts\install.ps1 -Source .\fleetctl.exe
+.\scripts\install.ps1 -Source .\fleetctl.exe -Checksums .\checksums.txt
 .\scripts\install.ps1 -Action Doctor
 .\scripts\install.ps1 -Action Uninstall
 ```
 
-Use `-PurgeData` only when permanent deletion is intended.
+Use `-Action Uninstall -PurgeData -ConfirmPurge "$env:LOCALAPPDATA\FleetScope\data"` only when permanent deletion is intended.
 
 ## Notification delivery
 
-Start from `examples/notifications.example.json` and pass it with `--notifications`. Endpoint URLs, authentication headers, SMTP credentials, and Telegram tokens must be supplied through the referenced environment variables. FleetScope persists grouped deliveries, deduplicates repeated alert sets, observes suppression/deployment windows, retries with bounded exponential backoff, and exposes manual replay in the console.
+Start from `examples/notifications.example.json` and pass it with `--notifications`. Endpoint URLs, authentication headers, SMTP credentials, and Telegram tokens must be supplied through the referenced environment variables. Outbound HTTP, HTTPS, and SMTP connections reject loopback, private, link-local, metadata, documentation, and other special networks by default and never follow HTTP redirects. A channel may set `allow_private_network` only when its endpoint is a trusted local or private service; link-local and cloud metadata ranges remain blocked. FleetScope persists grouped deliveries, deduplicates repeated alert sets, observes suppression/deployment windows, retries with bounded exponential backoff, and exposes manual replay in the console.
 
 ## Evidence and optional AI explanation
 
-Evidence packages are generated locally from structured alerts, reviewed changes, numeric metrics, event counts, and sanitized topology. Raw event text is excluded unless explicitly requested, then limited and redacted. Configure an optional provider from `examples/ai-provider.example.json` with `--ai-provider`; the endpoint and API key remain environment references. A user must inspect the exact payload preview and confirm its hash before every provider request. AI output is advisory and cannot change alerts, releases, infrastructure, or approval state.
+Evidence packages are generated locally from structured alerts, reviewed changes, numeric metrics, event counts, and sanitized topology. Raw event text is excluded unless explicitly requested, then limited and redacted. Configure an optional provider from `examples/ai-provider.example.json` with `--ai-provider`; the endpoint and API key remain environment references. Local OpenAI-compatible or Ollama-style endpoints require the explicit `allow_private_network` setting. Link-local and metadata endpoints stay blocked. A user must inspect the exact payload preview and confirm its hash before every provider request. AI output is advisory and cannot change alerts, releases, infrastructure, or approval state.
 
 For the Agent, install `fleet-agent.service`, `agent.env`, `applications.json`, and any probe/log configuration on each node. The installer creates `/var/lib/fleetscope-agent` for its durable queue and node credential. If the Agent does not run InfraScout, remove `/var/lib/infrascout` from `ReadWritePaths` or create that directory first.
 
@@ -119,5 +126,5 @@ For the Agent, install `fleet-agent.service`, `agent.env`, `applications.json`, 
 - `notifications/` contains the bounded delivery queue and final outcomes.
 - `evidence-packages/` contains immutable evidence packages; `evidence-explanations/` stores provider output separately.
 - Back up `/var/lib/fleetscope`; restore it only while the center is stopped. Preserve permissions because the directory contains operational metadata and credential hashes.
-- Set explicit retention and capacity flags for the expected node, series, sample, event, and report-history volume. `--history-max-entries` and `--history-max-bytes` bound each node's NDJSON report history independently. Monitor rejected ingest responses and Agent spool growth as hard-capacity signals.
+- Set explicit retention and capacity flags for the expected node, series, sample, event, and report-history volume. Metric samples roll forward at the capacity limit; cardinality, batch, and event limits still reject oversized input. `--history-max-entries` and `--history-max-bytes` bound each node's NDJSON report history independently. Monitor rejected ingest responses and Agent spool growth as hard-capacity signals.
 - `--evidence-max-packages` bounds immutable evidence packages (default 1000); pruning also removes explanations attached to expired packages. Back up packages that must outlive the operational retention window.

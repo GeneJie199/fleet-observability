@@ -6,6 +6,8 @@ on:
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 jobs:
   test:
@@ -36,12 +38,29 @@ jobs:
       - name: Reachable vulnerability scan
         if: matrix.os == 'ubuntu-latest'
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./...
+      - name: Security and secret scan
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: bash scripts/security-check.sh
+      - name: Compatibility parser fuzz smoke
+        if: matrix.os == 'ubuntu-latest'
+        run: go test -parallel=2 -run='^$' -fuzz='^FuzzCompatibilityParsers$' -fuzztime=5s ./internal/compat
       - name: Changelog contains release
         if: matrix.os == 'ubuntu-latest'
         shell: bash
         run: |
           version="${GITHUB_REF_NAME#v}"
           grep -q "^## ${version%%-*}" CHANGELOG.md
+      - name: Verify installer syntax
+        if: matrix.os == 'ubuntu-latest'
+        run: sh -n scripts/install.sh
+      - name: Verify Windows installer syntax
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path 'scripts/install.ps1'), [ref]$null, [ref]$errors)
+          if ($errors.Count) { $errors | Format-List; exit 1 }
 
   build:
     needs: test
@@ -68,13 +87,15 @@ jobs:
           CGO_ENABLED: 0
         run: |
           version="${GITHUB_REF_NAME#v}"
+          binary="fleetctl-${GOOS}-${GOARCH}${{ matrix.ext }}"
           package="fleetscope-${version}-${GOOS}-${GOARCH}"
           mkdir -p "$package"
-          go build -trimpath -ldflags "-s -w -X main.version=${version}" -o "$package/fleetctl${{ matrix.ext }}" ./cmd/fleetctl
+          go build -trimpath -ldflags "-s -w -X main.version=${version}" -o "$binary" ./cmd/fleetctl
+          cp "$binary" "$package/fleetctl${{ matrix.ext }}"
           cp README.md CHANGELOG.md LICENSE SECURITY.md "$package/"
           cp -R deploy docs examples scripts "$package/"
           if [ "$GOOS" = windows ]; then
-            7z a -tzip "${package}.zip" "./${package}/*"
+            zip -qr "${package}.zip" "$package"
           else
             tar -czf "${package}.tar.gz" "$package"
           fi
@@ -82,6 +103,7 @@ jobs:
         with:
           name: fleetscope-${{ matrix.goos }}-${{ matrix.goarch }}
           path: |
+            fleetctl-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
             fleetscope-*.tar.gz
             fleetscope-*.zip
 
@@ -89,12 +111,24 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
       - uses: actions/download-artifact@v8
         with:
           path: dist
           merge-multiple: true
       - name: Checksums
-        run: cd dist && sha256sum fleetscope-* > checksums.txt
+        run: |
+          go run github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@v1.12.0 mod -licenses -json -output "dist/fleetscope-${GITHUB_REF_NAME}.cdx.json" .
+          cd dist && sha256sum fleetctl-* fleetscope-* > checksums.txt
+      - name: Attest release assets
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: |
+            dist/*
       - uses: softprops/action-gh-release@v3
         with:
           files: dist/*

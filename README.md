@@ -5,7 +5,17 @@
 [![CI](https://github.com/GeneJie199/fleet-observability/actions/workflows/ci.yml/badge.svg)](https://github.com/GeneJie199/fleet-observability/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
-## 可交付能力
+## Screenshot
+
+![FleetScope fleet health overview](https://raw.githubusercontent.com/GeneJie199/ai-devops-open-suite/main/assets/fleetscope-overview.png)
+
+![FleetScope evidence-backed resource topology](https://raw.githubusercontent.com/GeneJie199/ai-devops-open-suite/main/assets/fleetscope-topology.png)
+
+## Why
+
+Small teams should not need to assemble a collector, time-series database, dashboard, alert manager, topology tool, and AI service before they can understand a fleet. FleetScope provides one bounded native data path, then accepts mainstream formats as optional compatibility inputs.
+
+## Core Features
 
 - 单二进制同时提供一键本机模式、Center、常驻 Agent、诊断和兼容用的一次性 `push`。
 - `fleetctl up` 自动生成管理凭据、启动 Center、登记本机 Agent、执行原生发现并打开控制台。
@@ -28,7 +38,7 @@
 - 证据分析先在本地生成不可变脱敏包，默认排除密钥、环境变量、业务行、源代码和原始日志；只有用户检查精确预览并确认后才调用可选 AI Provider。
 - 响应式中文 Web 控制台，无 Node/CDN 运行依赖。
 
-## 快速开始
+## Quick Start
 
 ```bash
 ./fleetctl up
@@ -41,6 +51,91 @@
 ```
 
 从源码体验：`go build -trimpath -o fleetctl ./cmd/fleetctl && ./fleetctl up`。需要中心与多台 Agent 分开部署时，再使用后续命令和运维指南。
+
+## Online Install
+
+Install and start the complete Open Suite, including the FleetScope Center and local Agent:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/GeneJie199/ai-devops-open-suite/main/scripts/bootstrap.sh | bash
+```
+
+```powershell
+irm https://raw.githubusercontent.com/GeneJie199/ai-devops-open-suite/main/scripts/bootstrap.ps1 | iex
+```
+
+For FleetScope alone, download the platform archive from [Releases](https://github.com/GeneJie199/fleet-observability/releases/latest), extract it, and run `scripts/install.sh` or `scripts/install.ps1`. The Linux installer creates a management token, Center service, node-bound Agent credential, and systemd services.
+
+## Offline Install
+
+On an online machine, download the matching `fleetscope-<version>-<os>-<arch>` archive and `checksums.txt`, then transfer and extract them:
+
+```bash
+sudo sh scripts/install.sh install ./fleetctl ./checksums.txt
+sudo sh scripts/install.sh doctor
+```
+
+```powershell
+.\scripts\install.ps1 -Action Install -Source .\fleetctl.exe -Checksums .\checksums.txt
+.\scripts\install.ps1 -Action Doctor
+```
+
+The full Open Suite offline bundle supplies all five platform binaries, protocol schemas, manifests, and checksums and performs no public network access while installing.
+
+## First Five Minutes
+
+1. Open `http://127.0.0.1:8770/` after `fleetctl up`.
+2. Confirm the automatically registered local node and native host metrics.
+3. Open **Data access** and enable a recommended probe or application collector.
+4. Create a resource group and inspect the evidence-backed topology.
+5. Make a controlled service change, then review it in **Changes** and **Alerts**.
+
+## AI Optional
+
+Collection, storage, rules, alerts, changes, topology, notifications, and evidence packages work without AI. An optional provider receives only the exact redacted preview a user confirms. Local providers require explicit `allow_private_network`; AI output remains advisory and cannot mutate fleet state.
+
+## Comparison
+
+| Tool category | Primary strength | FleetScope's role |
+|---|---|---|
+| Prometheus-compatible systems | Broad metrics ecosystem | FleetScope owns its default collector/store and accepts Prometheus text only as optional input |
+| OpenTelemetry | Vendor-neutral telemetry transport | FleetScope accepts OTLP/HTTP JSON but does not require an OTel Collector |
+| Dashboard products | Flexible visualization | FleetScope starts from fleet health, change review, coverage, and evidence topology |
+| Remote administration | Execute commands on hosts | FleetScope is observation-only and never needs SSH access to monitored nodes |
+
+## Architecture
+
+```mermaid
+flowchart LR
+  A[Native Agent] -->|node credential, spool and retry| C[Center]
+  P[Prometheus / Influx / OTLP input] --> C
+  I[InfraScout evidence] --> C
+  C --> S[Bounded telemetry and event stores]
+  S --> R[Rules, alerts and changes]
+  C --> T[Resource groups and topology]
+  R --> E[Redacted evidence package]
+```
+
+Agent and Center are one Go binary with separate commands. The Center uses append-only segments and atomic metadata files; there is no runtime dependency on Prometheus, InfluxDB, an OpenTelemetry Collector, Node, or a CDN.
+
+## Security
+
+- Loopback is the default; remote listeners require TLS and authentication, with optional mTLS.
+- Agent credentials are node-bound, revocable, and separate from the management token.
+- Webhook, SMTP, and AI destinations enforce DNS/IP SSRF policy and do not follow redirects; private endpoints require an explicit trust flag and metadata ranges remain blocked.
+- Logs and AI evidence are bounded and redacted. Releases include SHA-256, CycloneDX SBOM, secret scanning, and GitHub provenance.
+
+See [SECURITY.md](SECURITY.md) and [docs/operations.md](docs/operations.md).
+
+## Roadmap
+
+The measured v1.0 boundary is one Center with up to 100 nodes. See the [scale baseline](docs/scale-baseline.md) for exact CPU, memory, disk, retention, ingest, restart, and query results. Larger federated deployments and longer-term storage remain on the [Open Suite roadmap](https://github.com/GeneJie199/ai-devops-open-suite/blob/main/ROADMAP.md).
+
+## Contributing
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md). Collector changes need deterministic fixtures, bounded resource use, restart and spool coverage, and malformed-input tests. Report vulnerabilities through [SECURITY.md](SECURITY.md).
+
+## Product Reference
 
 ## 多节点部署
 
@@ -113,7 +208,7 @@ Nginx 使用 `stub_status`，Redis 使用原生 RESP `INFO`，PostgreSQL/MySQL �
 
 Agent 会保存每个文件的读取偏移，完整行才会进入独立事件队列；文件被截断或轮转后会从新文件继续读取。`format` 可设为 `json`、`text` 或 `auto`。
 
-## 安全模型
+## 安全模型细节
 
 - loopback Center 可用于本机或 SSH 隧道。
 - 非 loopback Center 强制要求 `FLEET_TOKEN` 和 `--tls-cert` / `--tls-key`。
@@ -151,18 +246,18 @@ API 还包括 `/telemetry/query`、`/telemetry/catalog`、`/events`、`/rules`�
 ## 安装与运维
 
 ```bash
-sudo sh ./scripts/install.sh ./fleetctl
+sudo sh ./scripts/install.sh install ./fleetctl ./checksums.txt
 ```
 
 Windows 当前用户安装：
 
 ```powershell
-.\scripts\install.ps1 -Source .\fleetctl.exe
+.\scripts\install.ps1 -Action Install -Source .\fleetctl.exe -Checksums .\checksums.txt
 ```
 
-发布压缩包已经包含安装脚本、systemd 单元、示例配置、README、许可证和运维文档。Center/Agent 服务、TLS、通知、AI Provider、备份与卸载说明见 [docs/operations.md](docs/operations.md)。
+发布压缩包已经包含安装脚本、systemd 单元、示例配置、README、许可证和运维文档。普通卸载保留配置和数据；Unix 深度清除需要 `--purge-data` 与精确的 `FLEETSCOPE_CONFIRM_PURGE`，Windows 需要 `-PurgeData -ConfirmPurge <exact-data-path>`。FleetScope 永远不清除 InfraScout 的状态目录。Center/Agent 服务、TLS、通知、AI Provider、备份与卸载说明见 [docs/operations.md](docs/operations.md)。
 
-## 产品边界
+## Known Limitations
 
 - 不执行远程命令，不自动修复机器，不自动批准漂移。
 - 当前内置分段存储面向单 Center 的小中型节点集；容量上限、保留周期和备份窗口必须按 [运维指南](docs/operations.md) 配置。兼容主流数据格式不表示运行时依赖对应采集器或存储。
