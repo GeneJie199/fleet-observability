@@ -61,13 +61,14 @@ type NotificationConfig struct {
 }
 
 type NotificationChannel struct {
-	ID          string            `json:"id"`
-	Type        string            `json:"type"`
-	Enabled     bool              `json:"enabled"`
-	EndpointEnv string            `json:"endpoint_env,omitempty"`
-	HeadersEnv  map[string]string `json:"headers_env,omitempty"`
-	SMTP        *SMTPChannel      `json:"smtp,omitempty"`
-	Telegram    *TelegramChannel  `json:"telegram,omitempty"`
+	ID                  string            `json:"id"`
+	Type                string            `json:"type"`
+	Enabled             bool              `json:"enabled"`
+	EndpointEnv         string            `json:"endpoint_env,omitempty"`
+	HeadersEnv          map[string]string `json:"headers_env,omitempty"`
+	SMTP                *SMTPChannel      `json:"smtp,omitempty"`
+	Telegram            *TelegramChannel  `json:"telegram,omitempty"`
+	AllowPrivateNetwork bool              `json:"allow_private_network,omitempty"`
 }
 
 type SMTPChannel struct {

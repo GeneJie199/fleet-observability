@@ -61,3 +61,15 @@ func TestParsersRejectEmptyOrInvalidPayloads(t *testing.T) {
 func intString(value int64) string {
 	return strconv.FormatInt(value, 10)
 }
+
+func FuzzCompatibilityParsers(f *testing.F) {
+	f.Add([]byte("requests_total 1\n"), "ns")
+	f.Add([]byte(`{"resourceMetrics":[]}`), "ms")
+	f.Add([]byte("cpu,host=node-a usage=1.5 1"), "s")
+	f.Fuzz(func(t *testing.T, payload []byte, precision string) {
+		now := time.Unix(1_700_000_000, 0).UTC()
+		_, _ = ParsePrometheus(strings.NewReader(string(payload)), now)
+		_, _ = ParseInflux(strings.NewReader(string(payload)), now, precision)
+		_, _ = ParseOTLPJSON(strings.NewReader(string(payload)), now)
+	})
+}

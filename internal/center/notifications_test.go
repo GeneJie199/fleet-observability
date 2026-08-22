@@ -25,7 +25,7 @@ func TestNotificationDeliveryIsPersistentGroupedAndDeduplicated(t *testing.T) {
 	defer endpoint.Close()
 	t.Setenv("FLEET_TEST_WEBHOOK", endpoint.URL)
 	dir := t.TempDir()
-	config := NotificationConfig{Channels: []NotificationChannel{{ID: "operations", Type: "webhook", Enabled: true, EndpointEnv: "FLEET_TEST_WEBHOOK"}}, Policy: NotificationPolicy{DedupeWindowSeconds: 600, MaxQueue: 10, MaxAttempts: 3, InitialRetrySeconds: 1}}
+	config := NotificationConfig{Channels: []NotificationChannel{{ID: "operations", Type: "webhook", Enabled: true, EndpointEnv: "FLEET_TEST_WEBHOOK", AllowPrivateNetwork: true}}, Policy: NotificationPolicy{DedupeWindowSeconds: 600, MaxQueue: 10, MaxAttempts: 3, InitialRetrySeconds: 1}}
 	engine, err := NewNotificationEngine(dir, &config, "")
 	if err != nil {
 		t.Fatal(err)
@@ -59,7 +59,7 @@ func TestNotificationDeliveryIsPersistentGroupedAndDeduplicated(t *testing.T) {
 func TestNotificationSuppressionAndRetry(t *testing.T) {
 	now := time.Now().UTC()
 	config := NotificationConfig{
-		Channels: []NotificationChannel{{ID: "operations", Type: "slack", Enabled: true, EndpointEnv: "FLEET_TEST_SLACK"}},
+		Channels: []NotificationChannel{{ID: "operations", Type: "slack", Enabled: true, EndpointEnv: "FLEET_TEST_SLACK", AllowPrivateNetwork: true}},
 		Policy:   NotificationPolicy{DedupeWindowSeconds: 60, MaxQueue: 10, MaxAttempts: 3, InitialRetrySeconds: 1, Suppressions: []NotificationSuppression{{NodeID: "node-maintenance", Until: now.Add(time.Hour).Format(time.RFC3339), Reason: "planned work"}}},
 	}
 	dir := t.TempDir()

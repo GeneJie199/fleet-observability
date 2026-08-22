@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -24,16 +23,16 @@ import (
 const evidencePackageSchema = "fleetscope.evidence-package/v1"
 
 type AIProviderConfig struct {
-	Type           string `json:"type"`
-	EndpointEnv    string `json:"endpoint_env"`
-	APIKeyEnv      string `json:"api_key_env,omitempty"`
-	Model          string `json:"model"`
-	TimeoutSeconds int    `json:"timeout_seconds,omitempty"`
+	Type                string `json:"type"`
+	EndpointEnv         string `json:"endpoint_env"`
+	APIKeyEnv           string `json:"api_key_env,omitempty"`
+	Model               string `json:"model"`
+	TimeoutSeconds      int    `json:"timeout_seconds,omitempty"`
+	AllowPrivateNetwork bool   `json:"allow_private_network,omitempty"`
 }
 
 type AIProvider struct {
 	config AIProviderConfig
-	client *http.Client
 }
 
 type EvidencePackageInput struct {
@@ -197,7 +196,7 @@ func NewAIProvider(config *AIProviderConfig) (*AIProvider, error) {
 	if timeout == 0 {
 		timeout = 60
 	}
-	return &AIProvider{config: *config, client: &http.Client{Timeout: time.Duration(timeout) * time.Second}}, nil
+	return &AIProvider{config: *config}, nil
 }
 
 func (s *Server) createEvidencePackage(w http.ResponseWriter, r *http.Request) {
@@ -673,9 +672,8 @@ func (p *AIProvider) Explain(ctx context.Context, prompt string) (string, error)
 	if endpoint == "" {
 		return "", fmt.Errorf("required AI endpoint environment variable %s is empty", p.config.EndpointEnv)
 	}
-	parsed, err := url.Parse(endpoint)
-	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
-		return "", errors.New("AI endpoint must be an absolute HTTP(S) URL")
+	if _, err := validateOutboundURL(endpoint); err != nil {
+		return "", fmt.Errorf("invalid AI endpoint: %w", err)
 	}
 	key := ""
 	if p.config.APIKeyEnv != "" {
@@ -696,6 +694,7 @@ func (p *AIProvider) Explain(ctx context.Context, prompt string) (string, error)
 		body = map[string]any{"model": p.config.Model, "prompt": prompt}
 	}
 	b, _ := json.Marshal(body)
+	// #nosec G704 -- outboundHTTPClient validates DNS results at dial time and blocks redirects.
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(b))
 	if err != nil {
 		return "", err
@@ -712,7 +711,12 @@ func (p *AIProvider) Explain(ctx context.Context, prompt string) (string, error)
 			req.Header.Set("Authorization", "Bearer "+key)
 		}
 	}
-	resp, err := p.client.Do(req)
+	timeout := p.config.TimeoutSeconds
+	if timeout == 0 {
+		timeout = 60
+	}
+	// #nosec G704 -- the hardened client rejects special/private destinations unless explicitly trusted.
+	resp, err := newOutboundHTTPClient(time.Duration(timeout)*time.Second, p.config.AllowPrivateNetwork).Do(req)
 	if err != nil {
 		return "", errors.New("AI provider request failed")
 	}

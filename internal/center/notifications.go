@@ -25,7 +25,6 @@ type NotificationEngine struct {
 	dir       string
 	config    NotificationConfig
 	legacyURL string
-	client    *http.Client
 	mu        sync.Mutex
 }
 
@@ -60,7 +59,7 @@ func NewNotificationEngine(dataDir string, config *NotificationConfig, legacyURL
 	if err := validateNotificationConfig(&value); err != nil {
 		return nil, err
 	}
-	return &NotificationEngine{dir: filepath.Join(dataDir, "notifications"), config: value, legacyURL: legacyURL, client: &http.Client{Timeout: 10 * time.Second}}, nil
+	return &NotificationEngine{dir: filepath.Join(dataDir, "notifications"), config: value, legacyURL: legacyURL}, nil
 }
 
 func validateNotificationConfig(config *NotificationConfig) error {
@@ -109,7 +108,7 @@ func validateNotificationConfig(config *NotificationConfig) error {
 			return fmt.Errorf("notification channel %s must use endpoint_env", channel.ID)
 		}
 		for header, envName := range channel.HeadersEnv {
-			if strings.TrimSpace(header) == "" || strings.TrimSpace(envName) == "" {
+			if validateOutboundHeaderName(header) != nil || strings.TrimSpace(envName) == "" {
 				return fmt.Errorf("notification channel %s contains an invalid header environment mapping", channel.ID)
 			}
 		}
@@ -316,7 +315,7 @@ func (e *NotificationEngine) channel(id string) (NotificationChannel, bool) {
 
 func (e *NotificationEngine) deliver(ctx context.Context, channel NotificationChannel, alerts []Alert) error {
 	if channel.Type == "smtp" {
-		return e.deliverSMTP(ctx, *channel.SMTP, alerts)
+		return e.deliverSMTP(ctx, *channel.SMTP, channel.AllowPrivateNetwork, alerts)
 	}
 	endpoint := ""
 	if channel.ID == "legacy-webhook" {
@@ -333,12 +332,12 @@ func (e *NotificationEngine) deliver(ctx context.Context, channel NotificationCh
 	if endpoint == "" {
 		return fmt.Errorf("required endpoint environment variable %s is empty", channel.EndpointEnv)
 	}
-	parsed, err := url.Parse(endpoint)
-	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
-		return errors.New("notification endpoint must be an absolute HTTP(S) URL")
+	if _, err := validateOutboundURL(endpoint); err != nil {
+		return fmt.Errorf("invalid notification endpoint: %w", err)
 	}
 	payload := notificationPayload(channel, alerts)
 	b, _ := json.Marshal(payload)
+	// #nosec G704 -- outboundHTTPClient validates DNS results at dial time and blocks redirects.
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(b))
 	if err != nil {
 		return err
@@ -349,9 +348,13 @@ func (e *NotificationEngine) deliver(ctx context.Context, channel NotificationCh
 		if value == "" {
 			return fmt.Errorf("required header environment variable %s is empty", envName)
 		}
+		if strings.ContainsAny(value, "\r\n") {
+			return fmt.Errorf("header environment variable %s contains a line break", envName)
+		}
 		req.Header.Set(header, value)
 	}
-	resp, err := e.client.Do(req)
+	// #nosec G704 -- the hardened client rejects special/private destinations unless explicitly trusted.
+	resp, err := newOutboundHTTPClient(10*time.Second, channel.AllowPrivateNetwork).Do(req)
 	if err != nil {
 		return errors.New("notification request failed")
 	}
@@ -386,7 +389,7 @@ func notificationPayload(channel NotificationChannel, alerts []Alert) any {
 	}
 }
 
-func (e *NotificationEngine) deliverSMTP(ctx context.Context, config SMTPChannel, alerts []Alert) error {
+func (e *NotificationEngine) deliverSMTP(ctx context.Context, config SMTPChannel, allowPrivate bool, alerts []Alert) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -404,12 +407,17 @@ func (e *NotificationEngine) deliverSMTP(ctx context.Context, config SMTPChannel
 		}
 		auth = smtp.PlainAuth("", username, password, config.Host)
 	}
-	if !config.TLS {
-		return smtp.SendMail(address, auth, config.From, config.To, message)
-	}
-	connection, err := tls.Dial("tcp", address, &tls.Config{MinVersion: tls.VersionTLS12, ServerName: config.Host})
+	connection, err := dialOutboundContext(ctx, &net.Dialer{Timeout: 10 * time.Second}, "tcp", address, allowPrivate)
 	if err != nil {
 		return err
+	}
+	if config.TLS {
+		tlsConnection := tls.Client(connection, &tls.Config{MinVersion: tls.VersionTLS12, ServerName: config.Host})
+		if err = tlsConnection.HandshakeContext(ctx); err != nil {
+			_ = connection.Close()
+			return err
+		}
+		connection = tlsConnection
 	}
 	defer connection.Close()
 	client, err := smtp.NewClient(connection, config.Host)

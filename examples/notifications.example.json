@@ -10,6 +10,7 @@
       "id": "incident-webhook",
       "type": "webhook",
       "enabled": true,
+      "allow_private_network": false,
       "endpoint_env": "FLEET_INCIDENT_WEBHOOK",
       "headers_env": {
         "Authorization": "FLEET_INCIDENT_AUTHORIZATION"

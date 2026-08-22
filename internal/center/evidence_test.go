@@ -91,7 +91,7 @@ func TestAIExplanationRequiresExactPreviewConfirmation(t *testing.T) {
 	t.Setenv("FLEET_AI_ENDPOINT", provider.URL)
 	t.Setenv("FLEET_AI_KEY", "provider-secret")
 	dir := t.TempDir()
-	config := &AIProviderConfig{Type: "openai-compatible", EndpointEnv: "FLEET_AI_ENDPOINT", APIKeyEnv: "FLEET_AI_KEY", Model: "local-test"}
+	config := &AIProviderConfig{Type: "openai-compatible", EndpointEnv: "FLEET_AI_ENDPOINT", APIKeyEnv: "FLEET_AI_KEY", Model: "local-test", AllowPrivateNetwork: true}
 	s, err := NewWithOptions(dir, "secret", "", Options{AIConfig: config})
 	if err != nil {
 		t.Fatal(err)

@@ -1,0 +1,7 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Synthetic JWT used to verify AI evidence redaction"
+targetRules = ["jwt"]
+paths = ['''^internal/center/evidence_test\.go$''']
