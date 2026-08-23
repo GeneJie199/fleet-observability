@@ -6,6 +6,7 @@
 - Remove any runtime dependence on Prometheus or another collector while preserving Prometheus, Influx, and OTLP as optional compatibility inputs.
 - Enforce connect-time SSRF and header policy, compact telemetry memory, retain rolling latest bounded data, and publish a measured 100-node/3-day scale baseline.
 - Add ownership-safe checksum-verifying installers, complete platform archives plus stable suite binaries, fuzz/security gates, CycloneDX SBOM, and GitHub provenance.
+- Include and build-verify a platform-local binary checksum inside every standalone archive.
 
 ## 0.4.0 - 2026-08-23
 

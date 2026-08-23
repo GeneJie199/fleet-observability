@@ -68,7 +68,7 @@ For FleetScope alone, download the platform archive from [Releases](https://gith
 
 ## Offline Install
 
-On an online machine, download the matching `fleetscope-<version>-<os>-<arch>` archive and `checksums.txt`, then transfer and extract them:
+On an online machine, download the matching `fleetscope-<version>-<os>-<arch>` archive and release-level `checksums.txt`, and verify the archive before transfer. Extract it; the archive's own `checksums.txt` covers the platform-local `fleetctl` binary used below:
 
 ```bash
 sudo sh scripts/install.sh install ./fleetctl ./checksums.txt

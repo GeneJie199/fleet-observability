@@ -94,6 +94,7 @@ jobs:
           cp "$binary" "$package/fleetctl${{ matrix.ext }}"
           cp README.md CHANGELOG.md LICENSE SECURITY.md "$package/"
           cp -R deploy docs examples scripts "$package/"
+          (cd "$package" && sha256sum "fleetctl${{ matrix.ext }}" > checksums.txt && sha256sum -c checksums.txt)
           if [ "$GOOS" = windows ]; then
             zip -qr "${package}.zip" "$package"
           else
