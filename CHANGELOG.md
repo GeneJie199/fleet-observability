@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.0 (2026-10-31) — RC.1
+
+- Community RC: AI Team integration, AGPL-3.0-only source, preserved historical Apache rights.
+- Release gate, full license notices and offline Corresponding Source packaging.
+- See RELEASE_NOTES.md for maturity, safety, upgrade and rollback boundaries.
+
 ## 1.0.0 - 2026-08-23
 
 - Deliver the native Agent, collector, telemetry/event stores, fleet-first triage, recommendations, resource groups, topology history/diff, Change Center, alerting, delivery controls, and optional evidence-based AI.
