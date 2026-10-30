@@ -563,10 +563,7 @@
       "module": "golang.org/x/mod",
       "version": "v0.37.0",
       "usedBy": [
-        "ai-dev-cycle-manager",
-        "infrastructure-discovery",
-        "fleet-observability",
-        "release-validation"
+        "ai-dev-cycle-manager"
       ],
       "licenseFiles": [
         {
@@ -581,13 +578,30 @@
       "license": "BSD-3-Clause"
     },
     {
-      "module": "golang.org/x/sync",
-      "version": "v0.21.0",
+      "module": "golang.org/x/mod",
+      "version": "v0.38.0",
       "usedBy": [
-        "ai-dev-cycle-manager",
         "infrastructure-discovery",
         "fleet-observability",
         "release-validation"
+      ],
+      "licenseFiles": [
+        {
+          "path": "LICENSES/third-party/golang.org_x_mod_v0.38.0/LICENSE",
+          "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+        },
+        {
+          "path": "LICENSES/third-party/golang.org_x_mod_v0.38.0/PATENTS",
+          "sha256": "96f408bfae65bf137fc2525d3ecb030271c50c1e90799f87abf8846d8dd505cc"
+        }
+      ],
+      "license": "BSD-3-Clause"
+    },
+    {
+      "module": "golang.org/x/sync",
+      "version": "v0.21.0",
+      "usedBy": [
+        "ai-dev-cycle-manager"
       ],
       "licenseFiles": [
         {
@@ -596,6 +610,26 @@
         },
         {
           "path": "LICENSES/third-party/golang.org_x_sync_v0.21.0/PATENTS",
+          "sha256": "96f408bfae65bf137fc2525d3ecb030271c50c1e90799f87abf8846d8dd505cc"
+        }
+      ],
+      "license": "BSD-3-Clause"
+    },
+    {
+      "module": "golang.org/x/sync",
+      "version": "v0.22.0",
+      "usedBy": [
+        "infrastructure-discovery",
+        "fleet-observability",
+        "release-validation"
+      ],
+      "licenseFiles": [
+        {
+          "path": "LICENSES/third-party/golang.org_x_sync_v0.22.0/LICENSE",
+          "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+        },
+        {
+          "path": "LICENSES/third-party/golang.org_x_sync_v0.22.0/PATENTS",
           "sha256": "96f408bfae65bf137fc2525d3ecb030271c50c1e90799f87abf8846d8dd505cc"
         }
       ],
@@ -640,7 +674,7 @@
     },
     {
       "module": "golang.org/x/text",
-      "version": "v0.39.0",
+      "version": "v0.41.0",
       "usedBy": [
         "infrastructure-discovery",
         "fleet-observability",
@@ -648,11 +682,11 @@
       ],
       "licenseFiles": [
         {
-          "path": "LICENSES/third-party/golang.org_x_text_v0.39.0/LICENSE",
+          "path": "LICENSES/third-party/golang.org_x_text_v0.41.0/LICENSE",
           "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
         },
         {
-          "path": "LICENSES/third-party/golang.org_x_text_v0.39.0/PATENTS",
+          "path": "LICENSES/third-party/golang.org_x_text_v0.41.0/PATENTS",
           "sha256": "96f408bfae65bf137fc2525d3ecb030271c50c1e90799f87abf8846d8dd505cc"
         }
       ],
@@ -662,10 +696,7 @@
       "module": "golang.org/x/tools",
       "version": "v0.47.0",
       "usedBy": [
-        "ai-dev-cycle-manager",
-        "infrastructure-discovery",
-        "fleet-observability",
-        "release-validation"
+        "ai-dev-cycle-manager"
       ],
       "licenseFiles": [
         {
@@ -674,6 +705,26 @@
         },
         {
           "path": "LICENSES/third-party/golang.org_x_tools_v0.47.0/PATENTS",
+          "sha256": "96f408bfae65bf137fc2525d3ecb030271c50c1e90799f87abf8846d8dd505cc"
+        }
+      ],
+      "license": "BSD-3-Clause"
+    },
+    {
+      "module": "golang.org/x/tools",
+      "version": "v0.48.0",
+      "usedBy": [
+        "infrastructure-discovery",
+        "fleet-observability",
+        "release-validation"
+      ],
+      "licenseFiles": [
+        {
+          "path": "LICENSES/third-party/golang.org_x_tools_v0.48.0/LICENSE",
+          "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+        },
+        {
+          "path": "LICENSES/third-party/golang.org_x_tools_v0.48.0/PATENTS",
           "sha256": "96f408bfae65bf137fc2525d3ecb030271c50c1e90799f87abf8846d8dd505cc"
         }
       ],
