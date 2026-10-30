@@ -93,6 +93,8 @@ jobs:
           go build -trimpath -ldflags "-s -w -X main.version=${version}" -o "$binary" ./cmd/fleetctl
           cp "$binary" "$package/fleetctl${{ matrix.ext }}"
           cp README.md CHANGELOG.md LICENSE SECURITY.md "$package/"
+          cp -R LICENSES "$package/"
+          cp NOTICE LICENSE_METADATA.json third-party-inventory.json third-party.cdx.json *_POLICY.md COMMERCIAL_LICENSE.md COMMERCIALIZATION.md LICENSING_HISTORY.md THIRD_PARTY_NOTICES.md "$package/"
           cp -R deploy docs examples scripts "$package/"
           (cd "$package" && sha256sum "fleetctl${{ matrix.ext }}" > checksums.txt && sha256sum -c checksums.txt)
           if [ "$GOOS" = windows ]; then

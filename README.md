@@ -1,9 +1,18 @@
 # FleetScope
 
+
+## v2 development and licensing
+
+Stable: v1.x (historical Apache-2.0 releases). Under development: v2 AI Engineering Team; not GA.
+
+Community Edition: **AGPL-3.0-only** for this development source. Historical release rights remain valid.
+Commercial / OEM licensing available for closed-source redistribution, white-labeling, embedding and other use cases incompatible with AGPL. See [license policy](LICENSE_POLICY.md), [history](LICENSING_HISTORY.md) and [commercial policy](COMMERCIAL_LICENSE.md).
+
+
 面向多节点环境的原生可观测与变化中心。FleetScope 自带 Agent、可靠传输、时序/事件存储、查询、告警和处置界面，不要求部署 Prometheus、OpenTelemetry Collector、InfluxDB 或其他采集与存储服务。中心不需要 SSH 登录被监控机器。
 
 [![CI](https://github.com/GeneJie199/fleet-observability/actions/workflows/ci.yml/badge.svg)](https://github.com/GeneJie199/fleet-observability/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 
 ## Screenshot
 
@@ -262,4 +271,4 @@ Windows 当前用户安装：
 - 不执行远程命令，不自动修复机器，不自动批准漂移。
 - 当前内置分段存储面向单 Center 的小中型节点集；容量上限、保留周期和备份窗口必须按 [运维指南](docs/operations.md) 配置。兼容主流数据格式不表示运行时依赖对应采集器或存储。
 
-Apache-2.0。贡献流程见 [CONTRIBUTING.md](CONTRIBUTING.md)，安全问题见 [SECURITY.md](SECURITY.md)。
+AGPL-3.0-only。贡献流程见 [CONTRIBUTING.md](CONTRIBUTING.md)，安全问题见 [SECURITY.md](SECURITY.md)。

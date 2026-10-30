@@ -9,3 +9,8 @@
 /groups.json
 /topology-reviews.json
 *.log
+
+/.qa/
+/*-tests.log
+/baseline-suite.log
+/AI-DEV-V2-C0-DELIVERY.zip*
