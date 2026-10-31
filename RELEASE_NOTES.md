@@ -36,3 +36,5 @@ is asserted. The contributor policy is not evidence of a signed CLA.
 Platform support and precise source revisions are recorded in the Suite release
 manifest and final acceptance report. Cross-compilation alone is not native
 installation verification. Security reports: see SECURITY.md.
+
+Release security: affected products select edwards25519 v1.1.1 (GO-2026-4503 fix). Every published target binary must pass govulncheck binary scanning before upload.

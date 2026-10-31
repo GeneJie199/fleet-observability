@@ -141,6 +141,13 @@ jobs:
           else
             tar -czf "${package}.tar.gz" "$package"
           fi
+      - name: Scan actual release binary for reachable vulnerabilities
+        shell: bash
+        env:
+          GOTOOLCHAIN: go1.27.3
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.6.0
+          "$(go env GOPATH)/bin/govulncheck" -mode=binary "./fleetctl-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}"
       - name: Match native verified macOS bytes
         if: matrix.goos == 'darwin'
         shell: bash
