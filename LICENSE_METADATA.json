@@ -1,0 +1,12 @@
+{
+  "sourceLicense": "AGPL-3.0-only",
+  "sourceVersion": "2.0.0-rc.1",
+  "transitionDate": "2026-10-30",
+  "historicalReleases": {
+    "through": "v1.x",
+    "license": "Apache-2.0"
+  },
+  "copyright": "2026 GeneJie199",
+  "thirdParty": "third-party-inventory.json",
+  "commercialPolicy": "COMMERCIAL_LICENSE.md"
+}
