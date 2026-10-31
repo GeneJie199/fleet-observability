@@ -147,7 +147,7 @@ jobs:
         run: cmp "fleetctl-${{ matrix.goos }}-${{ matrix.goarch }}" ".qa/native-verified/fleetctl-${{ matrix.goos }}-${{ matrix.goarch }}"
       - uses: actions/upload-artifact@v7
         with:
-          name: fleetscope-${{ matrix.goos }}-${{ matrix.goarch }}
+          name: release-fleetscope-${{ matrix.goos }}-${{ matrix.goarch }}
           path: |
             fleetctl-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
             fleetscope-*.tar.gz
