@@ -1,11 +1,19 @@
-# AI Engineering Team v2.0.0-rc.1 Community
+# fleet-observability v2.0.0-rc.2 Community
 
-This release candidate adds the DevCycle AI Team Runtime: Mission state machine,
-task DAG, five agent roles, capability registry and model routing, structured
-revisioned memory, R0–R4 risk assessment, execution/worktree provenance, machine
-verification evidence, independent review and release candidate export. Simple
-and Expert interfaces use the same runtime. InfraScout, FleetScope, ReleaseGuard
-and lifecycle-spec preserve the existing product and v0.1 contract surface.
+C1 hardens the local browser Host/Origin boundary without changing telemetry or incident contracts.
+
+This is rc.2 preparation, not a claim that final onboarding, dual-host or 24-hour
+acceptance has already passed. C1 measurements remain historical C1 evidence.
+Final publication requires rc.2 exact-source CI and release preflight.
+
+The delivery interface is the CLI binary/archive and vendored Corresponding
+Source offline build. Historical Go module import paths do not include /v2;
+this candidate makes no Go SDK `go install ...@v2` compatibility promise.
+Native macOS CLI verification differs from the Suite full offline installation
+scope, which is Windows/Linux amd64. Cross-compilation alone is not installation
+acceptance. No nine-live-provider or live Kimi/DeepSeek billing claim is made.
+
+## Continuing safety, installation and license boundaries
 
 This is a release candidate for trusted single-user local environments. Generic
 CLI adapters execute with the host user's permissions; worktrees and role path

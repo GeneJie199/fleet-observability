@@ -1,6 +1,6 @@
 {
   "sourceLicense": "AGPL-3.0-only",
-  "sourceVersion": "2.0.0-rc.1",
+  "sourceVersion": "2.0.0-rc.2",
   "transitionDate": "2026-10-30",
   "historicalReleases": {
     "through": "v1.x",

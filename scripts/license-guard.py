@@ -24,6 +24,7 @@ def check(root):
     for warning in inventory['warnings']:print('WARNING:',warning)
     sbom=json.loads((root/'third-party.cdx.json').read_text(encoding='utf-8'))
     if sbom['metadata']['component']['licenses'][0]['license']['id']!='AGPL-3.0-only':errors.append('SBOM source license mismatch')
+    if not metadata.get('sourceVersion') or sbom['metadata']['component'].get('version')!=metadata['sourceVersion']:errors.append('SBOM source version mismatch')
     return errors
 
 if __name__=='__main__':
