@@ -141,6 +141,7 @@ func (s *Server) authorizeReads(next http.Handler) http.Handler {
 func (s *Server) routes() *http.ServeMux {
 	m := http.NewServeMux()
 	m.HandleFunc("GET /api/v1/health", func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, map[string]string{"status": "ok"}) })
+	m.HandleFunc("GET /api/v1/diagnostics/runtime", handleRuntimeDiagnostics)
 	m.HandleFunc("GET /api/v1/overview", s.overview)
 	m.HandleFunc("GET /api/v1/nodes", s.listNodes)
 	m.HandleFunc("GET /api/v1/nodes/{id}", s.getNode)
