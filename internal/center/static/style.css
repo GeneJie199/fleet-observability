@@ -501,7 +501,7 @@ svg.lucide { width: 17px; height: 17px; flex: 0 0 auto; }
 .nav-divider span { float: none; min-width: auto; background: transparent; border-radius: 0; }
 .page-title > button:not(.quiet), .topology-controls > button { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
 .page-title h1:focus { outline: none; }
-.page-title > button:hover, .topology-controls > button:hover { border-color: #0b473a; background: #0f5143; }
+.page-title > button:not(.quiet):hover, .topology-controls > button:hover { border-color: var(--suite-accent-strong); background: var(--suite-accent-strong); }
 .status.pending { color: var(--warning); }
 .status.pending::before { background: var(--warning); }
 .status.delivered { color: var(--healthy); }
@@ -674,3 +674,5 @@ svg.lucide { width: 17px; height: 17px; flex: 0 0 auto; }
 :root[data-suite-theme="dark"] .chart-series-number { fill:var(--ui-bg); }
 :root[data-suite-theme="dark"] .chart-series-marker { stroke:var(--ui-bg); }
 :root[data-suite-theme="dark"] .tab-badge { color:var(--ui-bg); }
+
+:root[data-suite-theme="dark"] :is(.query-bar button,.event-query button,.page-title > button:not(.quiet),.topology-controls > button) { color:var(--ui-bg); }
