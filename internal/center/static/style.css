@@ -635,7 +635,7 @@ svg.lucide { width: 17px; height: 17px; flex: 0 0 auto; }
 #sync-state.error { color: var(--ui-danger); }
 @media(max-width:760px) { .page-head,.page-title { flex-wrap:wrap; gap:12px; } .top-actions,.sync-tools { gap:6px; } .top-actions #sync-state,.top-actions .quiet { display:none; } .suite-switcher summary span { display:none; } .metrics { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 
-.shell { display:block; min-height:calc(100vh - var(--ui-top)); }
+.shell { display:block; min-height:calc(100vh - var(--ui-header-space, var(--ui-top))); }
 .contextbar { margin-left:var(--ui-rail); flex-wrap:wrap; background:var(--ui-surface); padding:12px clamp(20px,3vw,40px); }
 .data-banner { margin-left:var(--ui-rail); }
 .trend:nth-child(1) .trend-line { stroke:var(--ui-chart-1); }

@@ -31,6 +31,7 @@
   --ui-control-radius: 9px;
   --ui-rail: 224px;
   --ui-top: 68px;
+  --ui-header-space: var(--ui-top);
   --ui-font: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
   --ui-chart-1: #4d7cff;
   --ui-chart-2: #9a6cff;
@@ -134,7 +135,7 @@
   --ui-chart-6: #acbbd3;
 }
 * { box-sizing: border-box; }
-html { min-width: 320px; scroll-padding-top: calc(var(--ui-top) + 16px); }
+html { min-width: 320px; scroll-padding-top: calc(var(--ui-header-space) + 16px); }
 body { margin: 0; background: var(--ui-bg); color: var(--ui-ink); font: 14px/1.55 var(--ui-font); }
 button, input, select, textarea { font: inherit; }
 button, input, select, textarea, summary { -webkit-tap-highlight-color: transparent; }
@@ -180,10 +181,10 @@ pre { background: var(--ui-surface-tint); color: var(--ui-ink); border: 1px soli
 .suite-theme-label select { min-height: 34px; width: 104px; padding: 6px 8px; font-size: 12px; border-color: var(--ui-line); }
 .suite-menu-toggle { display: none; align-items: center; justify-content: center; width: 38px; padding: 8px; background: var(--ui-surface); color: var(--ui-ink); border: 1px solid var(--ui-line); }
 .suite-menu-toggle svg { width: 18px; height: 18px; }
-.suite-has-header { padding-top: var(--ui-top); }
+.suite-has-header { padding-top: var(--ui-header-space); }
 .suite-has-sidebar .shell { display: block; }
 :is(#mainnav, #tabs, #suite-product-nav, nav.suite-side-nav).suite-side-nav {
-  position: fixed; inset: var(--ui-top) auto 0 0; z-index: 60; display: flex;
+  position: fixed; inset: var(--ui-header-space) auto 0 0; z-index: 60; display: flex;
   flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 4px;
   width: var(--ui-rail); min-height: 0; margin: 0; padding: 22px 12px 20px;
   overflow-y: auto; overscroll-behavior: contain; border: 0; border-right: 1px solid var(--ui-line);

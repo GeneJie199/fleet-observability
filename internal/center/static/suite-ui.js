@@ -6,12 +6,19 @@
   const system = window.matchMedia("(prefers-color-scheme: dark)");
   const mobile = window.matchMedia("(max-width: 760px)");
   let preferred = "system";
+  let query = null;
   try {
-    const query = new URL(location.href).searchParams.get("suite-theme");
-    const saved = localStorage.getItem(key);
-    preferred = modes.has(query) ? query : modes.has(saved) ? saved : "system";
-    if (modes.has(query)) localStorage.setItem(key, query);
-  } catch (_) { /* Private browsing must not disable the application. */ }
+    query = new URL(location.href).searchParams.get("suite-theme");
+  } catch (_) { /* Embedded previews may not have a normal HTTP URL. */ }
+  if (modes.has(query)) {
+    preferred = query;
+    try { localStorage.setItem(key, query); } catch (_) { /* The explicit URL still wins without storage. */ }
+  } else {
+    try {
+      const saved = localStorage.getItem(key);
+      if (modes.has(saved)) preferred = saved;
+    } catch (_) { /* Private browsing must not disable the application. */ }
+  }
   function resolve() { return preferred === "system" ? (system.matches ? "dark" : "light") : preferred; }
   function applyTheme() {
     document.documentElement.dataset.suiteTheme = resolve();
@@ -123,6 +130,17 @@
         tools.prepend(toggle);
       }
       header.append(tools);
+    }
+    if (header) {
+      const fitHeader = () => {
+        const height = header.getBoundingClientRect().height;
+        if (height > 0 && Number.isFinite(height)) {
+          document.documentElement.style.setProperty("--ui-header-space", `${height}px`);
+        }
+      };
+      fitHeader();
+      if (typeof ResizeObserver === "function") new ResizeObserver(fitHeader).observe(header);
+      else window.addEventListener("resize", fitHeader);
     }
     refreshNavigation();
     // Existing module discovery may resolve sibling ports after page load.
