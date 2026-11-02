@@ -261,6 +261,11 @@ dialog::backdrop { background: rgb(8 17 36 / 48%); backdrop-filter: blur(3px); }
   .suite-topbar { padding: 9px 14px; gap: 8px; flex-wrap: nowrap; }
   .suite-topbar .suite-kicker, .suite-topbar .privacy-state, .suite-topbar .product-brand small { display: none; }
   .suite-topbar .product-name, .suite-topbar .product-brand strong { font-size: 16px; }
+  .suite-topbar .suite-menu {
+    position: fixed; top: calc(var(--ui-header-space) + 8px); left: 12px; right: 12px;
+    width: auto; max-width: none; max-height: calc(100vh - var(--ui-header-space) - 24px);
+    overflow: auto;
+  }
   .suite-theme-label > span { display: none; }
   .suite-theme-label select { width: 84px; }
   .suite-ui-tools { gap: 6px; }
