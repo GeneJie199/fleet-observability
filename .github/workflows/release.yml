@@ -8,7 +8,7 @@ on:
       version:
         description: Candidate tag to verify without publishing
         required: true
-        default: v2.0.0-rc.1
+        default: v2.0.0-rc.2
         type: string
 
 env:
@@ -66,7 +66,7 @@ jobs:
         shell: bash
         run: |
           version="${RELEASE_TAG#v}"
-          grep -q "^## ${version%%-*}" CHANGELOG.md
+          grep -Fq "## ${version} (" CHANGELOG.md
       - name: Verify installer syntax
         if: matrix.os == 'ubuntu-latest'
         run: sh -n scripts/install.sh
