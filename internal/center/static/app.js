@@ -294,7 +294,9 @@
     $("#attention").classList.remove("loading");
     $("#attention").innerHTML = data.needs_attention.length ? nodeTable(data.needs_attention) : empty("当前没有需要立即处理的节点。");
     const resourceNames = { hosts: "主机", processes: "进程", endpoints: "监听端口", services: "服务", deployments: "部署", databases: "数据库", containers: "容器", networks: "网络", volumes: "卷" };
-    $("#resource-totals").innerHTML = Object.entries(data.resource_totals || {}).map(([key, value]) => `<div class="resource-item"><b>${fmt(value)}</b><span>${esc(resourceNames[key] || key)}</span></div>`).join("") || empty("尚无资源数据");
+    const resources = Object.entries(data.resource_totals || {});
+    const resourceMax = Math.max(1, ...resources.map(([, value]) => Number(value) || 0));
+    $("#resource-totals").innerHTML = resources.map(([key, value], index) => `<div class="resource-item"><b>${fmt(value)}</b><span>${esc(resourceNames[key] || key)}</span><div class="composition-track"><i style="width:${Math.max(0, Number(value) || 0) / resourceMax * 100}%;background:var(--ui-chart-${index % 6 + 1})"></i></div></div>`).join("") || empty("尚无资源数据");
   }
 
   function renderStartPanel(data) {
@@ -414,7 +416,7 @@
       const label = new Date(value).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
       return `<line x1="${xPos}" y1="${top}" x2="${xPos}" y2="${height-bottom}" class="chart-grid chart-grid-x"></line><text x="${xPos}" y="${height-16}" text-anchor="${index === 0 ? "start" : index === 5 ? "end" : "middle"}" class="chart-axis">${esc(label)}</text>`;
     }).join("");
-    const colors = ["#12634f", "#3d6ea8", "#b06a24", "#9b3f54", "#6d5a9b", "#527a3a", "#287d8e", "#8a5d2e", "#4b62a3", "#a14d3d"];
+    const colors = Array.from({length: 6}, (_, index) => `var(--ui-chart-${index + 1})`);
     const dashes = ["", "8 4", "3 3", "12 4 3 4", "2 4", "10 3"];
     const lines = result.series.map((item, index) => {
       const points = item.points.map((point) => `${x(point.timestamp_ms).toFixed(1)},${y(point.value).toFixed(1)}`).join(" ");

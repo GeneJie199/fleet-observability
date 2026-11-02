@@ -128,3 +128,7 @@ For the Agent, install `fleet-agent.service`, `agent.env`, `applications.json`, 
 - Back up `/var/lib/fleetscope`; restore it only while the center is stopped. Preserve permissions because the directory contains operational metadata and credential hashes.
 - Set explicit retention and capacity flags for the expected node, series, sample, event, and report-history volume. Metric samples roll forward at the capacity limit; cardinality, batch, and event limits still reject oversized input. `--history-max-entries` and `--history-max-bytes` bound each node's NDJSON report history independently. Monitor rejected ingest responses and Agent spool growth as hard-capacity signals.
 - `--evidence-max-packages` bounds immutable evidence packages (default 1000); pruning also removes explanations attached to expired packages. Back up packages that must outlive the operational retention window.
+
+## Runtime diagnostics
+
+`GET /api/v1/diagnostics/runtime` provides read-only process diagnostics through the existing web listener and Host/Origin protections and protected-read authentication. Responses disable caching and contain only `goroutines`, `heapAllocBytes`, `heapSysBytes`, `heapInuseBytes`, `systemBytes`, `gcCount`, and `uptimeSeconds`. Values come from the live Go runtime; uptime is measured from package initialization. No environment, configuration, paths, stacks, or process commands are exposed. This endpoint is observational and does not establish business readiness.

@@ -5,13 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>FleetScope</title>
   <link rel="stylesheet" href="/static/style.css">
+<link rel="stylesheet" href="/static/suite-design.css">
+<script defer src="/static/suite-ui.js"></script>
 </head>
-<body>
+<body data-suite-product="fleetscope" data-suite-nav="#tabs">
   <a class="skip-link" href="#main-content">跳到主要内容</a>
-  <header class="topbar">
+  <header class="topbar" data-ui-header>
     <div class="product-brand"><span class="suite-kicker">AI DEVOPS OPEN SUITE</span><div><strong class="product-name">FleetScope</strong><span class="product-subtitle">原生监控中心</span></div></div>
     <div class="top-actions">
-      <details class="suite-switcher"><summary aria-label="套件模块"><i data-lucide="blocks"></i><span>套件模块</span></summary><div class="suite-menu"><a data-suite="devcycle"><i data-lucide="workflow"></i><span><b>DevCycle</b><small>研发交付</small></span></a><a data-suite="infrascout"><i data-lucide="scan-search"></i><span><b>InfraScout</b><small>基础设施发现</small></span></a><a data-suite="fleetscope" class="current"><i data-lucide="activity"></i><span><b>FleetScope</b><small>原生监控</small></span></a><a data-suite="releaseguard"><i data-lucide="shield-check"></i><span><b>ReleaseGuard</b><small>发布门禁</small></span></a></div></details>
+      <details class="suite-switcher"><summary aria-label="套件模块"><i data-lucide="blocks"></i><span>套件模块</span></summary><div class="suite-menu"><a data-suite="devcycle" data-suite-page="suite"><i data-lucide="house"></i><span><b>套件工作台</b><small>Suite</small></span></a><a data-suite="devcycle"><i data-lucide="workflow"></i><span><b>DevCycle</b><small>研发交付</small></span></a><a data-suite="infrascout"><i data-lucide="scan-search"></i><span><b>InfraScout</b><small>基础设施发现</small></span></a><a data-suite="fleetscope" class="current"><i data-lucide="activity"></i><span><b>FleetScope</b><small>原生监控</small></span></a><a data-suite="releaseguard"><i data-lucide="shield-check"></i><span><b>ReleaseGuard</b><small>发布门禁</small></span></a></div></details>
       <span id="sync-state">等待同步</span><span id="sync-announcer" class="sr-only" role="status" aria-live="polite"></span>
       <button id="token-button" class="quiet command-with-icon" type="button"><i data-lucide="key-round"></i>管理凭据</button>
       <button id="refresh" class="icon-command" type="button" title="立即刷新" aria-label="立即刷新"><i data-lucide="refresh-cw"></i></button>
@@ -25,7 +27,7 @@
     <span id="group-summary">全部节点与资源</span>
   </div>
   <div class="shell">
-    <nav aria-label="主导航">
+    <nav id="tabs" aria-label="主导航">
       <button class="active" data-view="overview" type="button" aria-current="page"><i data-lucide="layout-dashboard"></i>总览</button>
       <button data-view="nodes" type="button"><i data-lucide="server"></i>节点</button>
       <button data-view="metrics" type="button"><i data-lucide="chart-no-axes-combined"></i>指标分析</button>
@@ -41,7 +43,7 @@
       <button data-view="rules" type="button"><i data-lucide="list-checks"></i>告警规则</button>
       <button data-view="sources" type="button"><i data-lucide="plug-zap"></i>数据接入</button>
     </nav>
-    <main id="main-content" tabindex="-1">
+    <main data-ui-main id="main-content" tabindex="-1">
       <section class="view active" id="view-overview">
         <div class="page-title"><div><h1>全局健康</h1><p>按严重程度聚合节点、告警和待审核变化。</p></div></div>
         <section id="fleet-start" class="start-panel hidden" aria-live="polite"></section>
