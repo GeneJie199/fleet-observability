@@ -222,7 +222,7 @@ pre { background: var(--ui-surface-tint); color: var(--ui-ink); border: 1px soli
 .ui-primary:hover { background: linear-gradient(135deg, #1d4ed8, #6d28d9); }
 .ui-secondary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 9px 16px; border: 1px solid var(--ui-line-strong); border-radius: var(--ui-control-radius); color: var(--ui-ink); background: var(--ui-surface); text-decoration: none; }
 .ui-hero { position: relative; isolation: isolate; padding: 24px 0 28px; }
-.ui-hero::after { content: ""; position: absolute; z-index: -1; inset: -20px -20px 0 28%; pointer-events: none; border-radius: 24px; background: radial-gradient(ellipse at 75% 20%, rgb(154 108 255 / 12%), transparent 58%), radial-gradient(ellipse at 45% 80%, rgb(77 124 255 / 9%), transparent 60%); }
+.ui-hero::after { content: ""; position: absolute; z-index: -1; inset: -20px 0 0 28%; pointer-events: none; border-radius: 24px; background: radial-gradient(ellipse at 75% 20%, rgb(154 108 255 / 12%), transparent 58%), radial-gradient(ellipse at 45% 80%, rgb(77 124 255 / 9%), transparent 60%); }
 .ui-hero h1 { margin: 6px 0 12px; font-size: clamp(26px, 2.5vw, 38px); }
 .ui-hero p { max-width: 740px; color: var(--ui-muted); }
 .ui-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 20px; }
