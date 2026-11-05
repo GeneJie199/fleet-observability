@@ -2,7 +2,6 @@ package center
 
 import (
 	"bufio"
-	"bytes"
 	"crypto/sha256"
 	"crypto/subtle"
 	"embed"
@@ -1182,41 +1181,71 @@ func compactHistoryFile(path string, maxEntries int, maxBytes int64) (int, error
 	if err != nil {
 		return 0, err
 	}
-	lines := [][]byte{}
+	defer file.Close()
+	type historyLine struct {
+		offset int64
+		size   int64
+	}
+	var lines []historyLine
 	totalBytes := int64(0)
 	changed := false
 	scanner := bufio.NewScanner(file)
 	scanner.Buffer(make([]byte, 64<<10), 20<<20)
+	var offset, lineOffset int64
+	scanner.Split(func(data []byte, atEOF bool) (int, []byte, error) {
+		advance, token, err := bufio.ScanLines(data, atEOF)
+		lineOffset = offset
+		offset += int64(advance)
+		return advance, token, err
+	})
 	for scanner.Scan() {
-		line := append([]byte(nil), scanner.Bytes()...)
-		if !json.Valid(line) || int64(len(line)+1) > maxBytes {
+		line := scanner.Bytes()
+		size := int64(len(line))
+		if !json.Valid(line) || size+1 > maxBytes {
 			changed = true
 			continue
 		}
-		lines = append(lines, line)
-		totalBytes += int64(len(line) + 1)
+		lines = append(lines, historyLine{offset: lineOffset, size: size})
+		totalBytes += size + 1
 		for len(lines) > maxEntries || totalBytes > maxBytes {
-			totalBytes -= int64(len(lines[0]) + 1)
+			totalBytes -= lines[0].size + 1
 			lines = lines[1:]
 			changed = true
 		}
 	}
-	scanErr := scanner.Err()
-	closeErr := file.Close()
-	if scanErr != nil {
-		return 0, scanErr
-	}
-	if closeErr != nil {
-		return 0, closeErr
+	if err := scanner.Err(); err != nil {
+		return 0, err
 	}
 	if !changed {
+		if err := file.Close(); err != nil {
+			return 0, err
+		}
 		return len(lines), nil
 	}
-	data := bytes.Join(lines, []byte{'\n'})
-	if len(data) > 0 {
-		data = append(data, '\n')
-	}
-	if err := atomicWrite(path, data); err != nil {
+	// Retain offsets rather than copying the report history into the Go heap.
+	err = atomicWriteContent(path, func(output *os.File) error {
+		writer := bufio.NewWriterSize(output, 64<<10)
+		copyBuffer := make([]byte, 64<<10)
+		for _, line := range lines {
+			reader := io.NewSectionReader(file, line.offset, line.size)
+			n, err := io.CopyBuffer(struct{ io.Writer }{writer}, reader, copyBuffer)
+			if err != nil {
+				return err
+			}
+			if n != line.size {
+				return io.ErrUnexpectedEOF
+			}
+			if err := writer.WriteByte('\n'); err != nil {
+				return err
+			}
+		}
+		if err := writer.Flush(); err != nil {
+			return err
+		}
+		// Close the input before replacement so the rename also works on Windows.
+		return file.Close()
+	})
+	if err != nil {
 		return 0, err
 	}
 	return len(lines), nil
@@ -1268,6 +1297,12 @@ func writeError(w http.ResponseWriter, status int, message string) {
 	_ = json.NewEncoder(w).Encode(map[string]string{"error": message})
 }
 func atomicWrite(path string, data []byte) error {
+	return atomicWriteContent(path, func(file *os.File) error {
+		_, err := file.Write(data)
+		return err
+	})
+}
+func atomicWriteContent(path string, write func(*os.File) error) error {
 	tmp, err := os.CreateTemp(filepath.Dir(path), ".fleet-*.tmp")
 	if err != nil {
 		return err
@@ -1275,7 +1310,7 @@ func atomicWrite(path string, data []byte) error {
 	name := tmp.Name()
 	defer os.Remove(name)
 	if err = tmp.Chmod(0o600); err == nil {
-		_, err = tmp.Write(data)
+		err = write(tmp)
 	}
 	if err == nil {
 		err = tmp.Sync()
