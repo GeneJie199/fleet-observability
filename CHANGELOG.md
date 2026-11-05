@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.0.0-rc.3 (2026-11-05)
+
+- Stream retained node reports during history compaction to reduce peak memory when a report crosses the retention limit. Preserve the entry and byte limits, record order, newline handling and atomic replacement.
+
 ## 2.0.0-rc.2 (2026-11-02)
 
 - C1 browser boundary rejects foreign Host/Origin requests while accepting actual loopback listener addresses.
