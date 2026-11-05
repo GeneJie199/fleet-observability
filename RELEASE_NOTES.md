@@ -1,8 +1,13 @@
-# fleet-observability v2.0.0-rc.2 Community
+# fleet-observability v2.0.0-rc.3 Community
 
-FleetScope applies the shared Suite design to the existing monitoring, metrics, events, databases, alerts, changes, topology, evidence, notifications, coverage, rules and data-source views. Center/Agent telemetry and incident contracts remain unchanged.
+FleetScope rc.3 reduces the Center's memory use when a node report crosses the history retention limit.
 
 ## Changes in this candidate
+
+- The Center retains the offsets and lengths of records selected for compaction, then streams those records into the replacement file. It preserves the configured limits, record order, newline handling and atomic replacement.
+- In an isolated Linux amd64 comparison with 2,001 synthetic reports totaling 46.6 MB, cumulative Go allocation fell from 154.3 MB to 0.45 MB per compaction. Peak memory for the test cgroup, including file cache, fell from 254.5 MiB to 102.4 MiB. The measurements apply to this synthetic workload.
+
+## Included from rc.2
 
 - Shared Light / Dark / System appearance, responsive sidebar/mobile menu and consistent cards, forms and dialogs. The mobile credential-management entry stays visible as an accessible compact control.
 - Resource bars, metric series and evidence-confidence visuals use actual loaded values with SVG geometry and external theme classes. The strict Content Security Policy remains in place; empty and failed queries remain visible.
@@ -20,8 +25,8 @@ The delivery interface is the CLI binary/archive and vendored Corresponding Sour
 
 ## Candidate and safety scope
 
-This is an RC, not GA. These changes do not assert completed final 136/168 functional acceptance, uninterrupted 24-hour stability, or live GPT/Kimi/DeepSeek three-model collaboration. Those require their own version-bound evidence. Synthetic/demo visual fixtures do not prove live fleet health, an alert recovery or a successful AI analysis.
+GA qualification requires functional evidence from both hosts and an uninterrupted 24-hour observation after this candidate is deployed. Live GPT/Kimi/DeepSeek collaboration has a separate acceptance scope.
 
 The Suite generic CLI runtime remains for trusted single-user local environments. Worktrees and role path checks do not provide an OS sandbox for untrusted users. Enforcing isolation policies fail closed, R4 remains blocked, and a ReleaseGuard GO grants no production deployment permission. No model credentials, subscription/API entitlement, automatic purchase, HA or untrusted multi-tenancy are added here. Optional AI analysis retains its existing explicit preview/confirmation and credential boundaries.
 
-New v2 source is AGPL-3.0-only; historical v1.x keeps its original Apache-2.0 terms. Archives retain full license texts, third-party notices, inventory and SBOM. Corresponding Source is distributed separately with vendored Go dependencies and checksums. Commercial alternatives remain subject to verified rights and a separate agreement; no signed CLA, copyright transfer or third-party relicensing right is asserted. Published target binaries must pass the configured reachable-vulnerability scans. See SECURITY.md for reporting.
+New v2 source is AGPL-3.0-only; historical v1.x keeps its original Apache-2.0 terms. Archives retain full license texts, third-party notices and the Suite-wide license inventory and inventory SBOM. The release workflow also generates a FleetScope Go module graph SBOM. Corresponding Source is distributed separately with vendored Go dependencies and checksums. Commercial alternatives remain subject to verified rights and a separate agreement; no signed CLA, copyright transfer or third-party relicensing right is asserted. Published target binaries must pass the configured reachable-vulnerability scans. See SECURITY.md for reporting.

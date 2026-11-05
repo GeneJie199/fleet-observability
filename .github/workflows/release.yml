@@ -8,7 +8,7 @@ on:
       version:
         description: Candidate tag to verify without publishing
         required: true
-        default: v2.0.0-rc.2
+        default: v2.0.0-rc.3
         type: string
 
 env:
